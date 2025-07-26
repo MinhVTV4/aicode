@@ -50,6 +50,13 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        /* CSS cho Modal xem trước */
+        #previewModal iframe {
+            width: 100%;
+            height: 80vh;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 0.5rem;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -142,9 +149,14 @@
                 </button>
             </div>
 
-            <div class="mt-6">
+            <!-- NÚT HÀNH ĐỘNG -->
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
                     Lưu nội dung Editor thành phiên bản mới
+                </button>
+                <!-- NÚT XEM TRƯỚC MỚI -->
+                <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                    Xem trước mã
                 </button>
             </div>
 
@@ -174,6 +186,20 @@
             </div>
         </div>
     </div>
+
+    <!-- MODAL XEM TRƯỚC MỚI -->
+    <div id="previewModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-xl font-semibold">Bản xem trước</h3>
+                <button id="closePreviewBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div class="p-4">
+                <iframe id="previewFrame" title="Preview Content"></iframe>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Firebase SDK và script tùy chỉnh -->
     <script type="module">
@@ -205,7 +231,7 @@
         let aiModel;
         try {
             const ai = getAI(app, { backend: new GoogleAIBackend() });
-            aiModel = getGenerativeModel(ai, { model: "gemini-1.5-flash-latest" });
+            aiModel = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
             console.log("Generative Model initialized successfully via Firebase AI SDK.");
         } catch (e) {
             console.error("Error initializing AI Model:", e);
@@ -249,6 +275,12 @@
         const aiButtonText = document.getElementById('aiButtonText');
         const aiButtonSpinner = document.getElementById('aiButtonSpinner');
         
+        // THAM CHIẾU DOM CHO TÍNH NĂNG XEM TRƯỚC
+        const previewBtn = document.getElementById('previewBtn');
+        const previewModal = document.getElementById('previewModal');
+        const closePreviewBtn = document.getElementById('closePreviewBtn');
+        const previewFrame = document.getElementById('previewFrame');
+
         // --- Hàm tiện ích ---
         function showMessage(message, duration = 3000) {
             messageContent.textContent = message;
@@ -528,6 +560,24 @@
 
         const hideAddNewAppModal = () => addNewAppModal.classList.add('hidden');
 
+        // --- LOGIC CHO TÍNH NĂNG XEM TRƯỚC ---
+        const showPreview = () => {
+            const codeToPreview = mainCodeEditor.value;
+            if (!codeToPreview) {
+                showMessage("Không có mã trong trình soạn thảo để xem trước.", 3000);
+                return;
+            }
+            // Sử dụng srcdoc để đưa mã HTML vào iframe một cách an toàn
+            previewFrame.srcdoc = codeToPreview;
+            previewModal.classList.remove('hidden');
+        };
+
+        const closePreview = () => {
+            previewModal.classList.add('hidden');
+            // Xóa nội dung iframe để giải phóng bộ nhớ
+            previewFrame.srcdoc = '';
+        };
+
         // --- Gắn các sự kiện ---
         saveVersionBtn.addEventListener('click', saveVersion);
         addNewAppBtn.addEventListener('click', showAddNewAppModal);
@@ -542,6 +592,11 @@
             const filteredApps = allApps.filter(app => app.name.toLowerCase().includes(searchTerm));
             renderApplications(filteredApps);
         });
+
+        // Gắn sự kiện cho các nút xem trước
+        previewBtn.addEventListener('click', showPreview);
+        closePreviewBtn.addEventListener('click', closePreview);
+
     </script>
 </body>
 </html>
