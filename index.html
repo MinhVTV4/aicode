@@ -241,7 +241,7 @@
         let aiModel;
         try {
             const ai = getAI(app, { backend: new GoogleAIBackend() });
-            aiModel = getGenerativeModel(ai, { model: "gemini-1.5-flash-latest" });
+            aiModel = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
             console.log("Generative Model initialized successfully via Firebase AI SDK.");
         } catch (e) {
             console.error("Error initializing AI Model:", e);
