@@ -11,6 +11,9 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- highlight.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    
     <style>
         /* CSS tùy chỉnh để giao diện đẹp hơn */
         body {
@@ -56,6 +59,16 @@
             height: 80vh;
             border: 1px solid #e5e7eb; /* gray-200 */
             border-radius: 0.5rem;
+        }
+
+        /* Thêm style cho trình soạn thảo mới */
+        #editorContainer {
+            min-height: 200px; /* Đảm bảo chiều cao tối thiểu cho trình soạn thảo */
+        }
+        #editableCodeContent {
+            /* Đảm bảo nội dung có thể cuộn và trông giống textarea */
+            outline: none; /* Bỏ viền focus mặc định */
+            tab-size: 4; /* Kích thước tab */
         }
     </style>
 </head>
@@ -144,9 +157,15 @@
                 </div>
             </div>
 
+            <!-- Trình soạn thảo mã (đã thay đổi) -->
             <div class="flex-grow flex flex-col mb-4">
-                <label for="mainCodeEditor" class="block text-gray-700 text-sm font-bold mb-2">Trình soạn thảo:</label>
-                <textarea id="mainCodeEditor" class="flex-grow shadow-inner appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 font-mono text-sm" placeholder="Chọn một tệp, hoặc yêu cầu AI tạo code mới..."></textarea>
+                <label for="editableCodeContent" class="block text-gray-700 text-sm font-bold mb-2">Trình soạn thảo:</label>
+                <div id="editorContainer" class="relative flex-grow shadow-inner appearance-none border rounded-lg overflow-hidden">
+                    <!-- The actual editable code block, where highlight.js will apply highlighting -->
+                    <pre class="absolute inset-0 overflow-y-auto p-3 font-mono text-sm bg-white text-gray-700 leading-relaxed whitespace-pre-wrap z-10" style="tab-size: 4;"><code id="editableCodeContent" contenteditable="true" class="block min-h-full focus:outline-none" style="caret-color: #3b82f6;"></code></pre>
+                    <!-- Placeholder text -->
+                    <div id="editorPlaceholder" class="absolute inset-0 p-3 font-mono text-sm text-gray-400 pointer-events-none z-20">Chọn một tệp, hoặc yêu cầu AI tạo code mới...</div>
+                </div>
             </div>
 
             <!-- KHUNG GIẢI THÍCH MỚI -->
@@ -301,7 +320,13 @@
         const searchInput = document.getElementById('searchInput'); 
         const fileNameInput = document.getElementById('fileNameInput');
         const versionNotesInput = document.getElementById('versionNotesInput');
-        const mainCodeEditor = document.getElementById('mainCodeEditor');
+        
+        // THAM CHIẾU DOM MỚI CHO TRÌNH SOẠN THẢO HIGHLIGHT
+        const editorContainer = document.getElementById('editorContainer');
+        const editableCodeContent = document.getElementById('editableCodeContent'); // Đây là editor chính bây giờ
+        const editorPlaceholder = document.getElementById('editorPlaceholder');
+        const mainCodeEditor = editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
+
         const aiPromptInput = document.getElementById('aiPromptInput');
         const sendToAIButton = document.getElementById('sendToAIButton');
         const aiButtonText = document.getElementById('aiButtonText');
@@ -322,6 +347,16 @@
         const deletedVersionsList = document.getElementById('deletedVersionsList');
         const closeDeletedVersionsModalBtn = document.getElementById('closeDeletedVersionsModalBtn');
 
+        // --- highlight.js script ---
+        // highlight.js được tải qua CDN, hàm hljs sẽ có sẵn
+        // Khởi tạo highlight.js trên editor
+        function applyHighlighting() {
+            if (typeof hljs !== 'undefined') {
+                // hljs.highlightElement chỉ cần element đã có text content
+                // và có class ngôn ngữ nếu muốn chỉ định rõ, hoặc để highlight.js tự động nhận diện
+                hljs.highlightElement(mainCodeEditor); 
+            }
+        }
 
         // --- Hàm tiện ích ---
         function showMessage(message, duration = 3000) {
@@ -339,6 +374,15 @@
             authErrorMsg.textContent = message;
         }
 
+        // --- Logic Placeholder cho trình soạn thảo ---
+        function toggleEditorPlaceholder() {
+            if (mainCodeEditor.textContent.trim() === '') {
+                editorPlaceholder.style.display = 'block';
+            } else {
+                editorPlaceholder.style.display = 'none';
+            }
+        }
+
         // --- Xác thực Firebase ---
         onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -350,6 +394,7 @@
                 mainAppContent.classList.remove('hidden');
                 mainAppContent.classList.add('grid');
                 loadApplications();
+                toggleEditorPlaceholder(); // Initial check for editor placeholder
             } else {
                 userId = null;
                 userEmailDisplay.classList.add('hidden');
@@ -453,7 +498,9 @@
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`app-${appId}`)?.classList.add('selected');
             loadVersions(appId); // Tải các phiên bản không bị xóa
-            mainCodeEditor.value = '';
+            mainCodeEditor.textContent = ''; // Cập nhật textContent thay vì value
+            applyHighlighting(); // Áp dụng highlight sau khi reset
+            toggleEditorPlaceholder(); // Cập nhật placeholder
             fileNameInput.value = '';
             versionNotesInput.value = '';
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
@@ -505,7 +552,9 @@
                         fileItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm';
                         fileItem.textContent = fileData.filename;
                         fileItem.onclick = () => {
-                            mainCodeEditor.value = fileData.content;
+                            mainCodeEditor.textContent = fileData.content; // Cập nhật textContent
+                            applyHighlighting(); // Áp dụng highlight sau khi tải
+                            toggleEditorPlaceholder(); // Cập nhật placeholder
                             fileNameInput.value = fileData.filename;
                             showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                             chat = null; // Reset phiên chat khi tải tệp mới
@@ -539,7 +588,7 @@
                 const instruction = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy trả lời theo định dạng sau: Đầu tiên, đưa ra lời giải thích ngắn gọn. Sau đó, thêm một dòng chỉ chứa dấu phân cách '---CODE---'. Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ mà không có bất kỳ định dạng markdown nào khác.`;
 
                 if (!chat) {
-                    const currentCode = mainCodeEditor.value;
+                    const currentCode = mainCodeEditor.textContent; // Lấy content từ editor mới
                     const history = [
                         {
                             role: "user",
@@ -569,7 +618,9 @@
                 
                 // Cập nhật giao diện
                 aiExplanationBox.innerHTML = explanation.replace(/\n/g, '<br>');
-                mainCodeEditor.value = code;
+                mainCodeEditor.textContent = code; // Cập nhật textContent của editor
+                applyHighlighting(); // Áp dụng highlight sau khi AI update
+                toggleEditorPlaceholder(); // Cập nhật placeholder
                 aiPromptInput.value = '';
                 showMessage("AI đã cập nhật mã và cung cấp giải thích.");
 
@@ -588,7 +639,7 @@
         const saveVersion = async () => {
             if (!userId || !currentAppId) return showMessage('Vui lòng chọn một ứng dụng.');
             const filename = fileNameInput.value.trim();
-            const content = mainCodeEditor.value;
+            const content = mainCodeEditor.textContent; // Lấy nội dung từ textContent
             if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
 
             try {
@@ -611,7 +662,9 @@
                 });
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
-                mainCodeEditor.value = '';
+                mainCodeEditor.textContent = ''; // Reset editor
+                applyHighlighting();
+                toggleEditorPlaceholder();
                 fileNameInput.value = '';
                 versionNotesInput.value = '';
                 aiPromptInput.value = '';
@@ -649,7 +702,7 @@
 
         // --- LOGIC CHO CÁC TÍNH NĂNG MỚI ---
         const showPreview = () => {
-            const codeToPreview = mainCodeEditor.value;
+            const codeToPreview = mainCodeEditor.textContent; // Lấy nội dung từ textContent
             if (!codeToPreview) {
                 return showMessage("Không có mã trong trình soạn thảo để xem trước.", 3000);
             }
@@ -663,12 +716,17 @@
         };
 
         const copyCode = () => {
-            const codeToCopy = mainCodeEditor.value;
+            const codeToCopy = mainCodeEditor.textContent; // Lấy nội dung từ textContent
             if (!codeToCopy) {
                 return showMessage("Không có mã trong trình soạn thảo để sao chép.", 3000);
             }
-            mainCodeEditor.select();
+            // Tạo một textarea tạm thời để sao chép nội dung
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = codeToCopy;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
             document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
             showMessage('Mã đã được sao chép vào clipboard!');
         };
 
@@ -694,7 +752,9 @@
                 showMessage('Phiên bản đã được chuyển vào thùng rác!');
                 // Đặt lại trạng thái giao diện sau khi xóa mềm
                 currentVersionId = null;
-                mainCodeEditor.value = '';
+                mainCodeEditor.textContent = ''; // Reset editor
+                applyHighlighting();
+                toggleEditorPlaceholder();
                 fileNameInput.value = '';
                 versionNotesInput.value = '';
                 aiPromptInput.value = '';
@@ -847,6 +907,45 @@
         showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
         closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
 
+        // Gắn sự kiện cho trình soạn thảo mới
+        mainCodeEditor.addEventListener('input', () => {
+            applyHighlighting();
+            toggleEditorPlaceholder();
+        });
+        mainCodeEditor.addEventListener('focus', () => {
+            editorPlaceholder.style.display = 'none';
+        });
+        mainCodeEditor.addEventListener('blur', () => {
+            toggleEditorPlaceholder();
+        });
+
+        // Xử lý phím Tab trong contenteditable
+        mainCodeEditor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault(); // Ngăn hành vi tab mặc định (chuyển focus)
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0);
+                
+                // Chèn ký tự tab
+                const tabNode = document.createTextNode('\t');
+                range.insertNode(tabNode);
+                
+                // Di chuyển con trỏ sau ký tự tab đã chèn
+                range.setStartAfter(tabNode);
+                range.setEndAfter(tabNode);
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                applyHighlighting(); // Áp dụng highlight lại sau khi chèn tab
+                toggleEditorPlaceholder();
+            }
+        });
+
+        // Gọi hàm kiểm tra placeholder ban đầu
+        toggleEditorPlaceholder();
+
     </script>
+    <!-- highlight.js JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </body>
 </html>
