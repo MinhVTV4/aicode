@@ -139,6 +139,14 @@
                 <label for="mainCodeEditor" class="block text-gray-700 text-sm font-bold mb-2">Trình soạn thảo:</label>
                 <textarea id="mainCodeEditor" class="flex-grow shadow-inner appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 font-mono text-sm" placeholder="Chọn một tệp, hoặc yêu cầu AI tạo code mới..."></textarea>
             </div>
+
+            <!-- KHUNG GIẢI THÍCH MỚI -->
+            <div class="mb-4">
+                <label for="aiExplanationBox" class="block text-gray-700 text-sm font-bold mb-2">Giải thích từ AI:</label>
+                <div id="aiExplanationBox" class="w-full h-32 p-3 bg-gray-100 border rounded-lg overflow-y-auto text-sm">
+                    <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>
+                </div>
+            </div>
             
             <div class="bg-gray-50 p-4 rounded-lg border">
                  <label for="aiPromptInput" class="block text-gray-700 text-sm font-bold mb-2">Yêu cầu cho AI:</label>
@@ -233,7 +241,7 @@
         let aiModel;
         try {
             const ai = getAI(app, { backend: new GoogleAIBackend() });
-            aiModel = getGenerativeModel(ai, { model: "gemini-1.5-flash-latest" });
+            aiModel = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
             console.log("Generative Model initialized successfully via Firebase AI SDK.");
         } catch (e) {
             console.error("Error initializing AI Model:", e);
@@ -278,12 +286,13 @@
         const aiButtonText = document.getElementById('aiButtonText');
         const aiButtonSpinner = document.getElementById('aiButtonSpinner');
         
-        // THAM CHIẾU DOM CHO TÍNH NĂNG XEM TRƯỚC VÀ SAO CHÉP
+        // THAM CHIẾU DOM CHO TÍNH NĂNG MỚI
         const previewBtn = document.getElementById('previewBtn');
         const copyBtn = document.getElementById('copyBtn');
         const previewModal = document.getElementById('previewModal');
         const closePreviewBtn = document.getElementById('closePreviewBtn');
         const previewFrame = document.getElementById('previewFrame');
+        const aiExplanationBox = document.getElementById('aiExplanationBox');
 
         // --- Hàm tiện ích ---
         function showMessage(message, duration = 3000) {
@@ -492,16 +501,19 @@
             sendToAIButton.disabled = true;
 
             try {
+                // **CẬP NHẬT LOGIC: Tách giải thích và code**
+                const instruction = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy trả lời theo định dạng sau: Đầu tiên, đưa ra lời giải thích ngắn gọn. Sau đó, thêm một dòng chỉ chứa dấu phân cách '---CODE---'. Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ mà không có bất kỳ định dạng markdown nào khác.`;
+
                 if (!chat) {
                     const currentCode = mainCodeEditor.value;
                     const history = [
                         {
                             role: "user",
-                            parts: [{ text: `Bạn là một trợ lý lập trình chuyên nghiệp. Mã nguồn hiện tại để làm việc là:\n---\n${currentCode}` }],
+                            parts: [{ text: `${instruction}\n\nMã nguồn ban đầu để làm việc là:\n---\n${currentCode}` }],
                         },
                         {
                             role: "model",
-                            parts: [{ text: "Đã hiểu. Tôi đã nhận được mã nguồn. Bạn có yêu cầu gì?" }],
+                            parts: [{ text: "Đã hiểu. Tôi đã nhận được mã nguồn và sẽ tuân theo định dạng được yêu cầu. Yêu cầu của bạn là gì?" }],
                         }
                     ];
                     chat = aiModel.startChat({ history });
@@ -509,12 +521,23 @@
 
                 const result = await chat.sendMessage(userPrompt);
                 const response = result.response;
-                let text = response.text();
-                text = text.replace(/^```[\w-]*\n/, '').replace(/\n```$/, '');
+                const fullResponseText = response.text();
+
+                const separator = '---CODE---';
+                let explanation = "AI không cung cấp giải thích cho lần này.";
+                let code = fullResponseText;
+
+                if (fullResponseText.includes(separator)) {
+                    const parts = fullResponseText.split(separator);
+                    explanation = parts[0].trim();
+                    code = parts.slice(1).join(separator).trim();
+                }
                 
-                mainCodeEditor.value = text;
+                // Cập nhật giao diện
+                aiExplanationBox.innerHTML = explanation.replace(/\n/g, '<br>');
+                mainCodeEditor.value = code;
                 aiPromptInput.value = '';
-                showMessage("AI đã cập nhật mã trong trình soạn thảo.");
+                showMessage("AI đã cập nhật mã và cung cấp giải thích.");
 
             } catch (error) {
                 console.error("Error calling AI via Firebase:", error);
