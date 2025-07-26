@@ -115,6 +115,9 @@
         <!-- Cột giữa: Danh sách phiên bản (15%) -->
         <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
+            <button id="showDeletedVersionsBtn" class="bg-red-400 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 mb-4 w-full">
+                Xem phiên bản đã xóa
+            </button>
             <div id="versionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
                 <div class="text-gray-500 text-center py-4">Select an application to see versions.</div>
             </div>
@@ -158,7 +161,7 @@
             </div>
 
             <!-- NÚT HÀNH ĐỘNG -->
-            <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
                  <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
                     Lưu phiên bản mới
                 </button>
@@ -167,6 +170,10 @@
                 </button>
                 <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
                     Xem trước mã
+                </button>
+                <!-- NÚT XÓA (Soft Delete) -->
+                <button id="softDeleteVersionBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                    Xóa phiên bản
                 </button>
             </div>
 
@@ -197,7 +204,7 @@
         </div>
     </div>
 
-    <!-- MODAL XEM TRƯỚC MỚI -->
+    <!-- MODAL XEM TRƯỚC -->
     <div id="previewModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col">
             <div class="flex justify-between items-center p-4 border-b">
@@ -206,6 +213,19 @@
             </div>
             <div class="p-4">
                 <iframe id="previewFrame" title="Preview Content"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PHIÊN BẢN ĐÃ XÓA MỚI -->
+    <div id="deletedVersionsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <h3 class="text-2xl font-bold mb-6 text-gray-800">Phiên bản đã xóa</h3>
+            <div id="deletedVersionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
+                <div class="text-gray-500 text-center py-4">Đang tải các phiên bản đã xóa...</div>
+            </div>
+            <div class="flex justify-end gap-4 mt-6">
+                <button id="closeDeletedVersionsModalBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Đóng</button>
             </div>
         </div>
     </div>
@@ -241,7 +261,7 @@
         let aiModel;
         try {
             const ai = getAI(app, { backend: new GoogleAIBackend() });
-            aiModel = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+            aiModel = getGenerativeModel(ai, { model: "gemini-1.5-flash-latest" });
             console.log("Generative Model initialized successfully via Firebase AI SDK.");
         } catch (e) {
             console.error("Error initializing AI Model:", e);
@@ -293,6 +313,14 @@
         const closePreviewBtn = document.getElementById('closePreviewBtn');
         const previewFrame = document.getElementById('previewFrame');
         const aiExplanationBox = document.getElementById('aiExplanationBox');
+        
+        // THAM CHIẾU DOM CHO TÍNH NĂNG THÙNG RÁC
+        const softDeleteVersionBtn = document.getElementById('softDeleteVersionBtn'); // Nút xóa mềm
+        const showDeletedVersionsBtn = document.getElementById('showDeletedVersionsBtn'); // Nút xem thùng rác
+        const deletedVersionsModal = document.getElementById('deletedVersionsModal');
+        const deletedVersionsList = document.getElementById('deletedVersionsList');
+        const closeDeletedVersionsModalBtn = document.getElementById('closeDeletedVersionsModalBtn');
+
 
         // --- Hàm tiện ích ---
         function showMessage(message, duration = 3000) {
@@ -423,16 +451,18 @@
             currentAppNameSpan.textContent = appName;
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`app-${appId}`)?.classList.add('selected');
-            loadVersions(appId);
+            loadVersions(appId); // Tải các phiên bản không bị xóa
             mainCodeEditor.value = '';
             fileNameInput.value = '';
             versionNotesInput.value = '';
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
+            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
         };
 
         const loadVersions = (appId) => {
             if (!userId || !appId) return;
-            const q = query(getVersionsCollectionRef(appId), orderBy('timestamp', 'desc'));
+            // Chỉ tải các phiên bản CHƯA bị xóa
+            const q = query(getVersionsCollectionRef(appId), where('deleted', '!=', true), orderBy('timestamp', 'desc'));
             onSnapshot(q, (snapshot) => {
                 versionsList.innerHTML = '';
                 if (snapshot.empty) {
@@ -462,6 +492,8 @@
             document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`version-${versionId}`)?.classList.add('selected');
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
+            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
+
             try {
                 const filesMap = await getFilesForVersion(appId, versionId);
                 versionFilesList.innerHTML = '';
@@ -476,6 +508,7 @@
                             fileNameInput.value = fileData.filename;
                             showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                             chat = null; // Reset phiên chat khi tải tệp mới
+                            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
                         };
                         versionFilesList.appendChild(fileItem);
                     });
@@ -558,15 +591,17 @@
             if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
 
             try {
-                const versionsQuery = query(getVersionsCollectionRef(currentAppId));
+                // Đảm bảo phiên bản mới không bị đánh dấu là đã xóa ngay từ đầu
+                const versionsQuery = query(getVersionsCollectionRef(currentAppId), where('deleted', '!=', true));
                 const versionsSnapshot = await getDocs(versionsQuery);
-                const newVersionIndex = versionsSnapshot.size + 1;
+                const newVersionIndex = versionsSnapshot.size + 1; // Index chỉ đếm các phiên bản đang hoạt động
 
                 const newVersionRef = await addDoc(getVersionsCollectionRef(currentAppId), {
                     versionIndex: newVersionIndex,
                     notes: versionNotesInput.value.trim() || 'Không có ghi chú',
                     timestamp: Date.now(),
-                    parentVersionId: currentVersionId 
+                    parentVersionId: currentVersionId,
+                    deleted: false // Mặc định là không bị xóa
                 });
 
                 await addDoc(getFilesCollectionRef(currentAppId, newVersionRef.id), {
@@ -579,6 +614,7 @@
                 fileNameInput.value = '';
                 versionNotesInput.value = '';
                 aiPromptInput.value = '';
+                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
             } catch (error) {
                 console.error("Error saving version:", error);
                 showMessage('Lưu phiên bản thất bại.', 5000);
@@ -635,6 +671,157 @@
             showMessage('Mã đã được sao chép vào clipboard!');
         };
 
+        // --- LOGIC CHO THÙNG RÁC ---
+
+        // Hàm xóa mềm phiên bản (chuyển vào thùng rác)
+        const softDeleteVersion = async () => {
+            if (!userId) return showMessage('Vui lòng đăng nhập.', 3000);
+            if (!currentAppId) return showMessage('Vui lòng chọn một ứng dụng.', 3000);
+            if (!currentVersionId) return showMessage('Vui lòng chọn một phiên bản để xóa.', 3000);
+
+            if (!confirm('Bạn có chắc chắn muốn chuyển phiên bản này vào thùng rác? Bạn có thể khôi phục nó sau này từ mục "Phiên bản đã xóa".')) {
+                return;
+            }
+
+            try {
+                const versionRef = doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`);
+                await updateDoc(versionRef, {
+                    deleted: true,
+                    deletedAt: serverTimestamp()
+                });
+                
+                showMessage('Phiên bản đã được chuyển vào thùng rác!');
+                // Đặt lại trạng thái giao diện sau khi xóa mềm
+                currentVersionId = null;
+                mainCodeEditor.value = '';
+                fileNameInput.value = '';
+                versionNotesInput.value = '';
+                aiPromptInput.value = '';
+                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>';
+                chat = null; // Đặt lại phiên chat AI
+
+                loadVersions(currentAppId); // Tải lại danh sách phiên bản đang hoạt động
+            } catch (error) {
+                console.error("Error soft deleting version:", error);
+                showMessage(`Lỗi khi chuyển phiên bản vào thùng rác: ${error.message}`, 5000);
+            }
+        };
+
+        // Hiển thị modal thùng rác
+        const showDeletedVersionsModal = () => {
+            if (!userId || !currentAppId) {
+                return showMessage('Vui lòng chọn một ứng dụng để xem các phiên bản đã xóa.', 3000);
+            }
+            deletedVersionsModal.classList.remove('hidden');
+            loadDeletedVersions();
+        };
+
+        // Đóng modal thùng rác
+        const closeDeletedVersionsModal = () => {
+            deletedVersionsModal.classList.add('hidden');
+            deletedVersionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Đang tải các phiên bản đã xóa...</div>'; // Reset nội dung
+        };
+
+        // Tải và hiển thị các phiên bản đã xóa
+        const loadDeletedVersions = () => {
+            if (!userId || !currentAppId) return;
+            const q = query(getVersionsCollectionRef(currentAppId), where('deleted', '==', true), orderBy('deletedAt', 'desc'));
+            onSnapshot(q, (snapshot) => {
+                deletedVersionsList.innerHTML = '';
+                if (snapshot.empty) {
+                    deletedVersionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Thùng rác trống.</div>';
+                    return;
+                }
+                snapshot.forEach(doc => {
+                    const version = doc.data();
+                    const versionItem = document.createElement('div');
+                    versionItem.className = 'bg-gray-100 p-3 rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2';
+                    const deletedAtDate = version.deletedAt ? new Date(version.deletedAt.toDate()).toLocaleString() : 'N/A';
+                    
+                    versionItem.innerHTML = `
+                        <div>
+                            <p class="font-medium text-gray-700">Phiên bản: ${version.versionIndex || 'N/A'}</p>
+                            <p class="text-sm text-gray-500">${version.notes || 'Không có ghi chú'}</p>
+                            <p class="text-xs text-gray-400">Đã xóa vào: ${deletedAtDate}</p>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
+                            <button class="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 restore-btn" data-version-id="${doc.id}">Khôi phục</button>
+                            <button class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 permanent-delete-btn" data-version-id="${doc.id}">Xóa vĩnh viễn</button>
+                        </div>
+                    `;
+                    deletedVersionsList.appendChild(versionItem);
+                });
+
+                // Gắn sự kiện cho các nút Khôi phục và Xóa vĩnh viễn
+                deletedVersionsList.querySelectorAll('.restore-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const versionIdToRestore = e.target.dataset.versionId;
+                        restoreVersion(currentAppId, versionIdToRestore);
+                    });
+                });
+                deletedVersionsList.querySelectorAll('.permanent-delete-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const versionIdToDelete = e.target.dataset.versionId;
+                        permanentDeleteVersion(currentAppId, versionIdToDelete);
+                    });
+                });
+            });
+        };
+
+        // Hàm khôi phục phiên bản
+        const restoreVersion = async (appId, versionId) => {
+            if (!userId || !appId || !versionId) return;
+
+            if (!confirm('Bạn có chắc chắn muốn khôi phục phiên bản này?')) {
+                return;
+            }
+
+            try {
+                const versionRef = doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`);
+                await updateDoc(versionRef, {
+                    deleted: false,
+                    deletedAt: null // Xóa dấu thời gian đã xóa
+                });
+                showMessage('Phiên bản đã được khôi phục thành công!');
+                loadVersions(appId); // Tải lại danh sách phiên bản hoạt động
+                loadDeletedVersions(); // Tải lại danh sách phiên bản đã xóa
+            } catch (error) {
+                console.error("Error restoring version:", error);
+                showMessage(`Lỗi khi khôi phục phiên bản: ${error.message}`, 5000);
+            }
+        };
+
+        // Hàm xóa vĩnh viễn phiên bản và các tệp của nó
+        const permanentDeleteVersion = async (appId, versionId) => {
+            if (!userId || !appId || !versionId) return;
+
+            if (!confirm('CẢNH BÁO: Bạn có chắc chắn muốn XÓA VĨNH VIỄN phiên bản này? Hành động này không thể hoàn tác và sẽ xóa tất cả các tệp liên quan đến phiên bản này.')) {
+                return;
+            }
+
+            try {
+                // Xóa tất cả các tệp thuộc về phiên bản cụ thể này
+                const filesSnapshot = await getDocs(getFilesCollectionRef(appId, versionId));
+                const deleteFilePromises = [];
+                filesSnapshot.forEach((fileDoc) => {
+                    deleteFilePromises.push(deleteDoc(fileDoc.ref));
+                });
+                await Promise.all(deleteFilePromises);
+
+                // Sau đó xóa tài liệu phiên bản chính
+                await deleteDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
+                
+                showMessage('Phiên bản và các tệp của nó đã được xóa vĩnh viễn!');
+                loadVersions(appId); // Tải lại danh sách phiên bản hoạt động
+                loadDeletedVersions(); // Tải lại danh sách phiên bản đã xóa
+            } catch (error) {
+                console.error("Error permanently deleting version:", error);
+                showMessage(`Lỗi khi xóa vĩnh viễn phiên bản: ${error.message}`, 5000);
+            }
+        };
+
+
         // --- Gắn các sự kiện ---
         saveVersionBtn.addEventListener('click', saveVersion);
         addNewAppBtn.addEventListener('click', showAddNewAppModal);
@@ -653,6 +840,11 @@
         previewBtn.addEventListener('click', showPreview);
         closePreviewBtn.addEventListener('click', closePreview);
         copyBtn.addEventListener('click', copyCode);
+        
+        // Gắn sự kiện cho các nút thùng rác mới
+        softDeleteVersionBtn.addEventListener('click', softDeleteVersion);
+        showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
+        closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
 
     </script>
 </body>
