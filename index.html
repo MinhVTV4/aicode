@@ -486,7 +486,10 @@
             onSnapshot(q, (snapshot) => {
                 allApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderApplications(allApps);
-            }, (error) => console.error("Error loading applications:", error));
+            }, (error) => {
+                console.error("Error loading applications:", error);
+                showMessage(`Lỗi khi tải ứng dụng: ${error.message}`, 5000); // Added showMessage for error
+            });
         };
 
         const selectApplication = (appId, appName) => {
@@ -509,10 +512,12 @@
 
         const loadVersions = (appId) => {
             if (!userId || !appId) return;
+            // Add a loading message immediately
+            versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Đang tải phiên bản...</div>';
             // Chỉ tải các phiên bản CHƯA bị xóa
             const q = query(getVersionsCollectionRef(appId), where('deleted', '!=', true), orderBy('timestamp', 'desc'));
             onSnapshot(q, (snapshot) => {
-                versionsList.innerHTML = '';
+                versionsList.innerHTML = ''; // Clear loading message once data is received
                 if (snapshot.empty) {
                     versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có phiên bản nào.</div>';
                     return;
@@ -531,6 +536,10 @@
                     versionItem.onclick = () => selectVersion(appId, doc.id);
                     versionsList.appendChild(versionItem);
                 });
+            }, (error) => { // Add error handling for onSnapshot
+                console.error("Error loading versions:", error);
+                versionsList.innerHTML = '<div class="text-red-500 text-center py-4">Lỗi khi tải phiên bản.</div>';
+                showMessage(`Lỗi khi tải phiên bản: ${error.message}`, 5000);
             });
         };
 
