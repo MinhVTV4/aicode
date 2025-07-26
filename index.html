@@ -177,14 +177,16 @@
 
     <!-- Firebase SDK và script tùy chỉnh -->
     <script type="module">
-        // Import các module cần thiết từ Firebase
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, getDocs, getDoc, onSnapshot, query, orderBy, setDoc, updateDoc, deleteDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Import các module cần thiết từ Firebase (sử dụng phiên bản 12.0.0 như code gốc)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, getDocs, getDoc, onSnapshot, query, orderBy, setDoc, updateDoc, deleteDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-firestore.js";
         
+        // **QUAY LẠI SỬ DỤNG FIREBASE AI SDK NHƯ CODE GỐC**
+        import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-ai.js";
+
         // --- Cấu hình Firebase ---
         // LƯU Ý QUAN TRỌNG: Thay thế các giá trị dưới đây bằng cấu hình Firebase của chính bạn.
-        // Bạn có thể lấy cấu hình này từ trang cài đặt dự án trên Firebase Console.
         const firebaseConfig = {
             apiKey: "AIzaSyD7I9ZKYFTc71tFMGA2lM72ykwDuwhEV0o",
             authDomain: "tudien-b2d17.firebaseapp.com",
@@ -199,10 +201,16 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // --- Cấu hình API Gemini ---
-        // LƯU Ý: Cần có API Key của Google AI Studio để sử dụng.
-        // Hãy thay thế bằng API Key của bạn.
-        const GEMINI_API_KEY = ""; // <-- DÁN API KEY CỦA BẠN VÀO ĐÂY
+        // --- Khởi tạo AI Model thông qua Firebase AI SDK ---
+        let aiModel;
+        try {
+            const ai = getAI(app, { backend: new GoogleAIBackend() });
+            aiModel = getGenerativeModel(ai, { model: "gemini-1.5-flash-latest" });
+            console.log("Generative Model initialized successfully via Firebase AI SDK.");
+        } catch (e) {
+            console.error("Error initializing AI Model:", e);
+            showMessage("Lỗi khởi tạo AI Model. Kiểm tra Console.", 5000);
+        }
 
         // --- Biến toàn cục và tham chiếu DOM ---
         let currentAppId = null;
@@ -429,35 +437,30 @@
             }
         };
 
-        // --- Logic AI Canvas ---
+        // --- Logic AI Canvas (Sử dụng Firebase AI SDK) ---
         const callAI = async () => {
-            if (!GEMINI_API_KEY) {
-                return showMessage("Vui lòng cung cấp API Key của Google AI Studio.", 5000);
+            if (!aiModel) {
+                return showMessage("Mô hình AI chưa sẵn sàng.", 3000);
             }
             const userPrompt = aiPromptInput.value.trim();
             if (!userPrompt) return showMessage("Vui lòng nhập yêu cầu cho AI.");
             
             const currentCode = mainCodeEditor.value;
-            const fullPrompt = `You are an expert coding assistant. Fulfill the user's request. Only return the modified or new code, without any explanation or markdown formatting.\n\nRequest: "${userPrompt}"\n\nExisting code to work with:\n---\n${currentCode}`;
+            const fullPrompt = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy thực hiện yêu cầu sau đây của người dùng. Chỉ trả về phần mã đã được thay đổi hoặc tạo mới, không thêm giải thích hay định dạng markdown.\n\nYêu cầu: "${userPrompt}"\n\nMã nguồn hiện tại để làm việc:\n---\n${currentCode}`;
 
             aiButtonText.textContent = 'Đang xử lý...';
             aiButtonSpinner.classList.remove('hidden');
             sendToAIButton.disabled = true;
 
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
-                });
-                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-                const result = await response.json();
-                let text = result.candidates[0].content.parts[0].text;
+                const result = await aiModel.generateContent(fullPrompt);
+                const response = result.response;
+                let text = response.text();
                 text = text.replace(/^```[\w-]*\n/, '').replace(/\n```$/, ''); // Dọn dẹp markdown
                 mainCodeEditor.value = text;
                 showMessage("AI đã cập nhật mã trong trình soạn thảo.");
             } catch (error) {
-                console.error("Error calling Gemini API:", error);
+                console.error("Error calling AI via Firebase:", error);
                 showMessage(`Lỗi khi gọi AI: ${error.message}`, 5000);
             } finally {
                 aiButtonText.textContent = 'Gửi tới AI';
