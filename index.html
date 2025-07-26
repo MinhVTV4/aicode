@@ -244,6 +244,7 @@
         let currentVersionId = null; 
         let userId = null;
         let allApps = [];
+        let chat = null; // **BIẾN MỚI: Lưu trữ phiên trò chuyện với AI**
 
         const applicationsList = document.getElementById('applicationsList');
         const versionsList = document.getElementById('versionsList');
@@ -404,6 +405,7 @@
             currentAppId = appId;
             currentAppName = appName;
             currentVersionId = null;
+            chat = null; // **CẬP NHẬT: Reset phiên chat khi chọn ứng dụng mới**
             currentAppNameSpan.textContent = appName;
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`app-${appId}`)?.classList.add('selected');
@@ -442,6 +444,7 @@
 
         const selectVersion = async (appId, versionId) => {
             currentVersionId = versionId;
+            chat = null; // **CẬP NHẬT: Reset phiên chat khi chọn phiên bản mới**
             document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`version-${versionId}`)?.classList.add('selected');
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
@@ -457,6 +460,7 @@
                             mainCodeEditor.value = fileData.content;
                             fileNameInput.value = fileData.filename;
                             showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
+                            chat = null; // **CẬP NHẬT: Reset phiên chat khi tải tệp mới**
                         };
                         versionFilesList.appendChild(fileItem);
                     });
@@ -469,31 +473,48 @@
             }
         };
 
-        // --- Logic AI Canvas (Sử dụng Firebase AI SDK) ---
+        // --- Logic AI Canvas (Sử dụng Firebase AI SDK với ngữ cảnh hội thoại) ---
         const callAI = async () => {
             if (!aiModel) {
                 return showMessage("Mô hình AI chưa sẵn sàng.", 3000);
             }
             const userPrompt = aiPromptInput.value.trim();
             if (!userPrompt) return showMessage("Vui lòng nhập yêu cầu cho AI.");
-            
-            const currentCode = mainCodeEditor.value;
-            const fullPrompt = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy thực hiện yêu cầu sau đây của người dùng. Chỉ trả về phần mã đã được thay đổi hoặc tạo mới, không thêm giải thích hay định dạng markdown.\n\nYêu cầu: "${userPrompt}"\n\nMã nguồn hiện tại để làm việc:\n---\n${currentCode}`;
 
             aiButtonText.textContent = 'Đang xử lý...';
             aiButtonSpinner.classList.remove('hidden');
             sendToAIButton.disabled = true;
 
             try {
-                const result = await aiModel.generateContent(fullPrompt);
+                // Nếu chưa có phiên chat, hãy bắt đầu một phiên mới với ngữ cảnh hiện tại
+                if (!chat) {
+                    const currentCode = mainCodeEditor.value;
+                    const history = [
+                        {
+                            role: "user",
+                            parts: [{ text: `Bạn là một trợ lý lập trình chuyên nghiệp. Mã nguồn hiện tại để làm việc là:\n---\n${currentCode}` }],
+                        },
+                        {
+                            role: "model",
+                            parts: [{ text: "Đã hiểu. Tôi đã nhận được mã nguồn. Bạn có yêu cầu gì?" }],
+                        }
+                    ];
+                    chat = aiModel.startChat({ history });
+                }
+
+                const result = await chat.sendMessage(userPrompt);
                 const response = result.response;
                 let text = response.text();
                 text = text.replace(/^```[\w-]*\n/, '').replace(/\n```$/, ''); // Dọn dẹp markdown
-                mainCodeEditor.value = text;
+                
+                mainCodeEditor.value = text; // Cập nhật trình soạn thảo với mã mới
+                aiPromptInput.value = ''; // Xóa yêu cầu sau khi gửi
                 showMessage("AI đã cập nhật mã trong trình soạn thảo.");
+
             } catch (error) {
                 console.error("Error calling AI via Firebase:", error);
                 showMessage(`Lỗi khi gọi AI: ${error.message}`, 5000);
+                chat = null; // Reset phiên chat nếu có lỗi
             } finally {
                 aiButtonText.textContent = 'Gửi tới AI';
                 aiButtonSpinner.classList.add('hidden');
