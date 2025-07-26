@@ -154,6 +154,16 @@
                 <div>
                     <label for="versionNotesInput" class="block text-gray-700 text-sm font-bold mb-2">Ghi chú phiên bản:</label>
                     <input type="text" id="versionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
+                    <!-- New button for editing notes -->
+                    <button id="editVersionNotesBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 text-sm rounded-lg shadow-md transition duration-300 mt-2 w-full hidden">
+                        Sửa ghi chú phiên bản hiện tại
+                    </button>
+                    <button id="saveEditedNotesBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 text-sm rounded-lg shadow-md transition duration-300 mt-2 w-full hidden">
+                        Lưu ghi chú đã sửa
+                    </button>
+                    <button id="cancelEditNotesBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-2 text-sm rounded-lg shadow-md transition duration-300 mt-2 w-full hidden">
+                        Hủy
+                    </button>
                 </div>
             </div>
 
@@ -347,6 +357,12 @@
         const deletedVersionsList = document.getElementById('deletedVersionsList');
         const closeDeletedVersionsModalBtn = document.getElementById('closeDeletedVersionsModalBtn');
 
+        // THAM CHIẾU DOM CHO TÍNH NĂNG SỬA GHI CHÚ PHIÊN BẢN
+        const editVersionNotesBtn = document.getElementById('editVersionNotesBtn');
+        const saveEditedNotesBtn = document.getElementById('saveEditedNotesBtn');
+        const cancelEditNotesBtn = document.getElementById('cancelEditNotesBtn');
+
+
         // --- highlight.js script ---
         // highlight.js được tải qua CDN, hàm hljs sẽ có sẵn
         // Khởi tạo highlight.js trên editor
@@ -383,6 +399,40 @@
             }
         }
 
+        // --- Hàm tiện ích cho trạng thái nút ---
+        function setEditModeButtonsVisibility(editing) {
+            if (editing) {
+                editVersionNotesBtn.classList.add('hidden');
+                saveEditedNotesBtn.classList.remove('hidden');
+                cancelEditNotesBtn.classList.remove('hidden');
+                versionNotesInput.readOnly = false;
+                versionNotesInput.focus();
+            } else {
+                editVersionNotesBtn.classList.remove('hidden'); // Show edit button when not in editing mode
+                saveEditedNotesBtn.classList.add('hidden');
+                cancelEditNotesBtn.classList.add('hidden');
+                versionNotesInput.readOnly = true; // Make it read-only by default for selected versions
+            }
+        }
+
+        function setMainControlsState(enabled) {
+            fileNameInput.disabled = !enabled;
+            editableCodeContent.contentEditable = enabled; 
+            sendToAIButton.disabled = !enabled;
+            saveVersionBtn.disabled = !enabled;
+            copyBtn.disabled = !enabled;
+            previewBtn.disabled = !enabled;
+            softDeleteVersionBtn.disabled = !enabled;
+            aiPromptInput.disabled = !enabled;
+
+            if (!enabled) {
+                editableCodeContent.textContent = '';
+                applyHighlighting();
+                toggleEditorPlaceholder();
+            }
+        }
+
+
         // --- Xác thực Firebase ---
         onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -394,7 +444,14 @@
                 mainAppContent.classList.remove('hidden');
                 mainAppContent.classList.add('grid');
                 loadApplications();
-                toggleEditorPlaceholder(); // Initial check for editor placeholder
+                
+                // Initial state: Enable main controls for creating new versions
+                setMainControlsState(true);
+                setEditModeButtonsVisibility(false); // Hide save/cancel, show edit (but edit is hidden by default if no version selected)
+                versionNotesInput.readOnly = false; // Make notes input editable by default for new versions
+                editVersionNotesBtn.classList.add('hidden'); // No version selected yet, hide edit button
+                toggleEditorPlaceholder(); 
+
             } else {
                 userId = null;
                 userEmailDisplay.classList.add('hidden');
@@ -462,6 +519,16 @@
             return files;
         };
 
+        // Add a function to get a specific version's data
+        const getVersionData = async (appId, versionId) => {
+            const versionRef = doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`);
+            const versionSnap = await getDoc(versionRef);
+            if (versionSnap.exists()) {
+                return { id: versionSnap.id, ...versionSnap.data() };
+            }
+            return null;
+        };
+
         // --- Các hàm render giao diện ---
         const renderApplications = (appsToRender) => {
             applicationsList.innerHTML = '';
@@ -486,10 +553,7 @@
             onSnapshot(q, (snapshot) => {
                 allApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderApplications(allApps);
-            }, (error) => {
-                console.error("Error loading applications:", error);
-                showMessage(`Lỗi khi tải ứng dụng: ${error.message}`, 5000); // Added showMessage for error
-            });
+            }, (error) => console.error("Error loading applications:", error));
         };
 
         const selectApplication = (appId, appName) => {
@@ -501,23 +565,31 @@
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`app-${appId}`)?.classList.add('selected');
             loadVersions(appId); // Tải các phiên bản không bị xóa
-            mainCodeEditor.textContent = ''; // Cập nhật textContent thay vì value
-            applyHighlighting(); // Áp dụng highlight sau khi reset
-            toggleEditorPlaceholder(); // Cập nhật placeholder
+
+            // Reset UI for selected version and editor
+            mainCodeEditor.textContent = '';
+            applyHighlighting();
+            toggleEditorPlaceholder();
             fileNameInput.value = '';
             versionNotesInput.value = '';
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
-            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
+            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+
+            // New: Reset notes editing state
+            setEditModeButtonsVisibility(false); // Hide save/cancel, show edit (which is then hidden)
+            versionNotesInput.readOnly = false; // Make it editable for new versions
+            editVersionNotesBtn.classList.add('hidden'); // No version selected yet, hide edit button
+
+            // New: Enable main controls for creating new versions
+            setMainControlsState(true);
         };
 
         const loadVersions = (appId) => {
             if (!userId || !appId) return;
-            // Add a loading message immediately
-            versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Đang tải phiên bản...</div>';
             // Chỉ tải các phiên bản CHƯA bị xóa
             const q = query(getVersionsCollectionRef(appId), where('deleted', '!=', true), orderBy('timestamp', 'desc'));
             onSnapshot(q, (snapshot) => {
-                versionsList.innerHTML = ''; // Clear loading message once data is received
+                versionsList.innerHTML = '';
                 if (snapshot.empty) {
                     versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có phiên bản nào.</div>';
                     return;
@@ -536,10 +608,6 @@
                     versionItem.onclick = () => selectVersion(appId, doc.id);
                     versionsList.appendChild(versionItem);
                 });
-            }, (error) => { // Add error handling for onSnapshot
-                console.error("Error loading versions:", error);
-                versionsList.innerHTML = '<div class="text-red-500 text-center py-4">Lỗi khi tải phiên bản.</div>';
-                showMessage(`Lỗi khi tải phiên bản: ${error.message}`, 5000);
             });
         };
 
@@ -551,7 +619,26 @@
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
             aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
 
+            // Fetch the selected version's notes and update the input
             try {
+                const versionData = await getVersionData(appId, versionId);
+                if (versionData) {
+                    versionNotesInput.value = versionData.notes || '';
+                }
+
+                // Enable edit notes button and make notes input read-only by default
+                setEditModeButtonsVisibility(false); // Show edit button, hide save/cancel
+                editVersionNotesBtn.classList.remove('hidden'); // Ensure it's visible when a version is selected
+
+                // Disable main code editing UI when an old version is selected
+                // Users should fork (save a new version) rather than modify an old one in place
+                setMainControlsState(false);
+                mainCodeEditor.textContent = ''; // Clear editor when an old version is selected
+                applyHighlighting(); // Apply highlight on empty content to clear it
+                toggleEditorPlaceholder();
+                fileNameInput.value = ''; // Clear filename input
+
+
                 const filesMap = await getFilesForVersion(appId, versionId);
                 versionFilesList.innerHTML = '';
                 if (filesMap.size > 0) {
@@ -568,6 +655,11 @@
                             showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                             chat = null; // Reset phiên chat khi tải tệp mới
                             aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
+
+                            // Re-enable main controls when a file is loaded for potential new version creation
+                            setMainControlsState(true); // Now user can edit this content and save as new version
+                            // But keep notes input read-only unless `editVersionNotesBtn` is clicked
+                            setEditModeButtonsVisibility(false); // Still show edit button for notes
                         };
                         versionFilesList.appendChild(fileItem);
                     });
@@ -652,7 +744,9 @@
             if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
 
             try {
-                // Đảm bảo phiên bản mới không bị đánh dấu là đã xóa ngay từ đầu
+                // The notes input should be editable for new versions.
+                versionNotesInput.readOnly = false; // Ensure it's editable for new save
+
                 const versionsQuery = query(getVersionsCollectionRef(currentAppId), where('deleted', '!=', true));
                 const versionsSnapshot = await getDocs(versionsQuery);
                 const newVersionIndex = versionsSnapshot.size + 1; // Index chỉ đếm các phiên bản đang hoạt động
@@ -661,7 +755,7 @@
                     versionIndex: newVersionIndex,
                     notes: versionNotesInput.value.trim() || 'Không có ghi chú',
                     timestamp: Date.now(),
-                    parentVersionId: currentVersionId,
+                    parentVersionId: currentVersionId, // This correctly sets the parent if a version was selected before creating new
                     deleted: false // Mặc định là không bị xóa
                 });
 
@@ -671,13 +765,21 @@
                 });
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
-                mainCodeEditor.textContent = ''; // Reset editor
+                // Reset editor state for a fresh start after saving a new version
+                currentVersionId = null; // New version is created, so current selected version is implicitly 'none' or the new one
+                mainCodeEditor.textContent = '';
                 applyHighlighting();
                 toggleEditorPlaceholder();
                 fileNameInput.value = '';
                 versionNotesInput.value = '';
                 aiPromptInput.value = '';
-                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
+                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                chat = null; // Reset AI chat after saving new version
+
+                // Re-enable main controls if they were disabled, or ensure they are ready for new input
+                setMainControlsState(true);
+                setEditModeButtonsVisibility(false); // Hide edit/save notes buttons
+
             } catch (error) {
                 console.error("Error saving version:", error);
                 showMessage('Lưu phiên bản thất bại.', 5000);
@@ -772,6 +874,9 @@
                 chat = null; // Đặt lại phiên chat AI
 
                 loadVersions(currentAppId); // Tải lại danh sách phiên bản đang hoạt động
+                setMainControlsState(true); // Re-enable main controls for creating new versions
+                setEditModeButtonsVisibility(false); // Hide edit notes buttons
+
             } catch (error) {
                 console.error("Error soft deleting version:", error);
                 showMessage(`Lỗi khi chuyển phiên bản vào thùng rác: ${error.message}`, 5000);
@@ -891,6 +996,71 @@
             }
         };
 
+        // --- LOGIC CHO SỬA GHI CHÚ PHIÊN BẢN ---
+        const enterEditNotesMode = async () => {
+            if (!userId || !currentAppId || !currentVersionId) {
+                return showMessage('Vui lòng chọn một phiên bản để sửa ghi chú.', 3000);
+            }
+            // Get current notes to populate
+            const versionData = await getVersionData(currentAppId, currentVersionId);
+            if (versionData) {
+                versionNotesInput.value = versionData.notes || '';
+            }
+            setEditModeButtonsVisibility(true); // Show save/cancel, make notes editable
+            setMainControlsState(false); // Temporarily disable other main controls
+            fileNameInput.disabled = true; // explicitly disable filename input
+        };
+
+        const exitEditNotesMode = () => {
+            setEditModeButtonsVisibility(false); // Hide save/cancel, show edit
+            
+            // Re-enable main controls only if a file is currently loaded in the editor
+            // or if no version is selected (to allow new version creation)
+            if (mainCodeEditor.textContent.trim() !== '' || currentVersionId === null) {
+                setMainControlsState(true);
+            } else {
+                // If a version is selected but no file loaded in editor, keep main controls disabled
+                setMainControlsState(false);
+            }
+            // If exiting edit mode for notes, and a version is selected, keep notes input read-only
+            if (currentVersionId) {
+                versionNotesInput.readOnly = true;
+                // Reset notes input value to original
+                getVersionData(currentAppId, currentVersionId).then(versionData => {
+                    if (versionData) versionNotesInput.value = versionData.notes || '';
+                });
+            } else {
+                // If no version selected, notes input should be editable for new versions
+                versionNotesInput.readOnly = false;
+                versionNotesInput.value = ''; // Clear for new version
+            }
+        };
+
+        const updateVersionNotes = async () => {
+            if (!userId || !currentAppId || !currentVersionId) {
+                return showMessage('Không có phiên bản nào được chọn để cập nhật.', 3000);
+            }
+            const newNotes = versionNotesInput.value.trim();
+            if (!newNotes) {
+                if (!confirm('Ghi chú trống. Bạn có muốn lưu ghi chú trống không?')) {
+                    // If user cancels, do not proceed with update, but do not exit edit mode immediately
+                    // user can correct the input
+                    return;
+                }
+            }
+
+            try {
+                const versionRef = doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`);
+                await updateDoc(versionRef, { notes: newNotes });
+                showMessage('Ghi chú phiên bản đã được cập nhật thành công!');
+                exitEditNotesMode();
+                loadVersions(currentAppId); // Reload versions to reflect changes in the list
+            } catch (error) {
+                console.error("Error updating version notes:", error);
+                showMessage(`Lỗi khi cập nhật ghi chú: ${error.message}`, 5000);
+            }
+        };
+
 
         // --- Gắn các sự kiện ---
         saveVersionBtn.addEventListener('click', saveVersion);
@@ -916,20 +1086,29 @@
         showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
         closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
 
-        // Gắn sự kiện cho trình soạn thảo mới
+        // New event listeners for notes editing
+        editVersionNotesBtn.addEventListener('click', enterEditNotesMode);
+        saveEditedNotesBtn.addEventListener('click', updateVersionNotes);
+        cancelEditNotesBtn.addEventListener('click', exitEditNotesMode);
+
+        // Modify editor event listeners to handle disabled state
         mainCodeEditor.addEventListener('input', () => {
+            if (editableCodeContent.contentEditable === 'false') return; // Check contentEditable status
             applyHighlighting();
             toggleEditorPlaceholder();
         });
         mainCodeEditor.addEventListener('focus', () => {
+            if (editableCodeContent.contentEditable === 'false') return;
             editorPlaceholder.style.display = 'none';
         });
         mainCodeEditor.addEventListener('blur', () => {
+            if (editableCodeContent.contentEditable === 'false') return;
             toggleEditorPlaceholder();
         });
 
         // Xử lý phím Tab trong contenteditable
         mainCodeEditor.addEventListener('keydown', (e) => {
+            if (editableCodeContent.contentEditable === 'false') return;
             if (e.key === 'Tab') {
                 e.preventDefault(); // Ngăn hành vi tab mặc định (chuyển focus)
                 const selection = window.getSelection();
