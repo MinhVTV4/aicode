@@ -231,7 +231,7 @@
         let aiModel;
         try {
             const ai = getAI(app, { backend: new GoogleAIBackend() });
-            aiModel = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+            aiModel = getGenerativeModel(ai, { model: "gemini-1.5-flash-latest" });
             console.log("Generative Model initialized successfully via Firebase AI SDK.");
         } catch (e) {
             console.error("Error initializing AI Model:", e);
@@ -351,6 +351,9 @@
         // --- Logic Firestore ---
         const getApplicationsCollectionRef = () => collection(db, `users/${userId}/applications`);
         const getVersionsCollectionRef = (appId) => collection(db, `users/${userId}/applications/${appId}/versions`);
+        const getFilesCollectionRef = (appId, versionId) => collection(db, `users/${userId}/applications/${appId}/versions/${versionId}/files`);
+
+        // **SỬA LỖI: Cập nhật hàm getFilesForVersion**
         const getFilesForVersion = async (appId, versionId) => {
             const files = new Map();
             let currentId = versionId;
@@ -360,15 +363,16 @@
                 if (!versionSnap.exists()) break;
                 const versionData = versionSnap.data();
                 
-                const fileRef = doc(db, `users/${userId}/applications/${appId}/versions/${currentId}/files/main`);
-                const fileSnap = await getDoc(fileRef);
-
-                if (fileSnap.exists()) {
-                    const fileData = fileSnap.data();
+                // Lấy tất cả các tệp trong subcollection 'files'
+                const filesQuery = query(getFilesCollectionRef(appId, currentId));
+                const filesSnapshot = await getDocs(filesQuery);
+                filesSnapshot.forEach(fileDoc => {
+                    const fileData = fileDoc.data();
                     if (!files.has(fileData.filename)) {
-                        files.set(fileData.filename, { ...fileData, versionId: currentId });
+                        files.set(fileData.filename, { ...fileData, id: fileDoc.id, versionId: currentId });
                     }
-                }
+                });
+
                 currentId = versionData.parentVersionId || null;
             }
             return files;
@@ -405,7 +409,7 @@
             currentAppId = appId;
             currentAppName = appName;
             currentVersionId = null;
-            chat = null; // **CẬP NHẬT: Reset phiên chat khi chọn ứng dụng mới**
+            chat = null; // Reset phiên chat khi chọn ứng dụng mới
             currentAppNameSpan.textContent = appName;
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`app-${appId}`)?.classList.add('selected');
@@ -431,7 +435,8 @@
                     versionItem.id = `version-${doc.id}`;
                     versionItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm';
                     if (doc.id === currentVersionId) versionItem.classList.add('selected');
-                    const date = version.timestamp?.toDate ? version.timestamp.toDate().toLocaleString() : new Date(version.timestamp).toLocaleString();
+                    // Sử dụng Date.now() nên không cần toDate()
+                    const date = new Date(version.timestamp).toLocaleString();
                     versionItem.innerHTML = `
                         <p class="font-medium text-gray-700">Phiên bản: ${version.versionIndex || 'N/A'}</p>
                         <p class="text-sm text-gray-500">${version.notes || 'Không có ghi chú'}</p>
@@ -444,7 +449,7 @@
 
         const selectVersion = async (appId, versionId) => {
             currentVersionId = versionId;
-            chat = null; // **CẬP NHẬT: Reset phiên chat khi chọn phiên bản mới**
+            chat = null; // Reset phiên chat khi chọn phiên bản mới
             document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`version-${versionId}`)?.classList.add('selected');
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
@@ -452,7 +457,9 @@
                 const filesMap = await getFilesForVersion(appId, versionId);
                 versionFilesList.innerHTML = '';
                 if (filesMap.size > 0) {
-                    filesMap.forEach(fileData => {
+                    // Sắp xếp file theo tên
+                    const sortedFiles = Array.from(filesMap.values()).sort((a, b) => a.filename.localeCompare(b.filename));
+                    sortedFiles.forEach(fileData => {
                         const fileItem = document.createElement('div');
                         fileItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm';
                         fileItem.textContent = fileData.filename;
@@ -460,7 +467,7 @@
                             mainCodeEditor.value = fileData.content;
                             fileNameInput.value = fileData.filename;
                             showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
-                            chat = null; // **CẬP NHẬT: Reset phiên chat khi tải tệp mới**
+                            chat = null; // Reset phiên chat khi tải tệp mới
                         };
                         versionFilesList.appendChild(fileItem);
                     });
@@ -523,6 +530,7 @@
         };
 
         // --- Các hàm hành động ---
+        // **SỬA LỖI: Cập nhật hàm saveVersion**
         const saveVersion = async () => {
             if (!userId || !currentAppId) return showMessage('Vui lòng chọn một ứng dụng.');
             const filename = fileNameInput.value.trim();
@@ -534,16 +542,19 @@
                 const versionsSnapshot = await getDocs(versionsQuery);
                 const newVersionIndex = versionsSnapshot.size + 1;
 
-                const newVersionRef = doc(collection(getVersionsCollectionRef(currentAppId)));
-                await setDoc(newVersionRef, {
+                // Sử dụng addDoc để tạo phiên bản mới và lấy ID
+                const newVersionRef = await addDoc(getVersionsCollectionRef(currentAppId), {
                     versionIndex: newVersionIndex,
                     notes: versionNotesInput.value.trim() || 'Không có ghi chú',
-                    timestamp: serverTimestamp(),
+                    timestamp: Date.now(), // Quay về dùng Date.now() cho ổn định
                     parentVersionId: currentVersionId 
                 });
 
-                const fileRef = doc(db, `users/${userId}/applications/${currentAppId}/versions/${newVersionRef.id}/files/main`);
-                await setDoc(fileRef, { filename, content });
+                // Sử dụng addDoc để thêm tệp mới vào subcollection 'files'
+                await addDoc(getFilesCollectionRef(currentAppId, newVersionRef.id), {
+                    filename,
+                    content
+                });
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
                 mainCodeEditor.value = '';
@@ -563,7 +574,7 @@
             try {
                 await addDoc(getApplicationsCollectionRef(), { 
                     name: appName, 
-                    createdAt: serverTimestamp() 
+                    createdAt: Date.now() // Dùng Date.now()
                 });
                 showMessage(`Ứng dụng "${appName}" đã được thêm!`);
                 hideAddNewAppModal();
