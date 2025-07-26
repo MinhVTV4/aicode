@@ -98,8 +98,8 @@
     <!-- Nội dung chính của ứng dụng (Ẩn cho đến khi đăng nhập) -->
     <main id="mainAppContent" class="flex-grow container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 hidden">
         
-        <!-- Cột trái: Danh sách ứng dụng -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-3 flex flex-col">
+        <!-- Cột trái: Danh sách ứng dụng (15%) -->
+        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Applications</h2>
             <button id="addNewAppBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 mb-4 w-full">
                 Add New Application
@@ -112,16 +112,16 @@
             </div>
         </section>
 
-        <!-- Cột giữa: Danh sách phiên bản -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-3 flex flex-col">
+        <!-- Cột giữa: Danh sách phiên bản (15%) -->
+        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
             <div id="versionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
                 <div class="text-gray-500 text-center py-4">Select an application to see versions.</div>
             </div>
         </section>
 
-        <!-- Cột phải: AI Canvas -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-6 flex flex-col">
+        <!-- Cột phải: AI Canvas (70%) -->
+        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-8 flex flex-col">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">AI Canvas</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -241,7 +241,7 @@
         let aiModel;
         try {
             const ai = getAI(app, { backend: new GoogleAIBackend() });
-            aiModel = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+            aiModel = getGenerativeModel(ai, { model: "gemini-1.5-flash-latest" });
             console.log("Generative Model initialized successfully via Firebase AI SDK.");
         } catch (e) {
             console.error("Error initializing AI Model:", e);
