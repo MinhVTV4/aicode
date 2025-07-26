@@ -150,11 +150,13 @@
             </div>
 
             <!-- NÚT HÀNH ĐỘNG -->
-            <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
                  <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
-                    Lưu nội dung Editor thành phiên bản mới
+                    Lưu phiên bản mới
                 </button>
-                <!-- NÚT XEM TRƯỚC MỚI -->
+                <button id="copyBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                    Sao chép mã
+                </button>
                 <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
                     Xem trước mã
                 </button>
@@ -276,8 +278,9 @@
         const aiButtonText = document.getElementById('aiButtonText');
         const aiButtonSpinner = document.getElementById('aiButtonSpinner');
         
-        // THAM CHIẾU DOM CHO TÍNH NĂNG XEM TRƯỚC
+        // THAM CHIẾU DOM CHO TÍNH NĂNG XEM TRƯỚC VÀ SAO CHÉP
         const previewBtn = document.getElementById('previewBtn');
+        const copyBtn = document.getElementById('copyBtn');
         const previewModal = document.getElementById('previewModal');
         const closePreviewBtn = document.getElementById('closePreviewBtn');
         const previewFrame = document.getElementById('previewFrame');
@@ -353,7 +356,6 @@
         const getVersionsCollectionRef = (appId) => collection(db, `users/${userId}/applications/${appId}/versions`);
         const getFilesCollectionRef = (appId, versionId) => collection(db, `users/${userId}/applications/${appId}/versions/${versionId}/files`);
 
-        // **SỬA LỖI: Cập nhật hàm getFilesForVersion**
         const getFilesForVersion = async (appId, versionId) => {
             const files = new Map();
             let currentId = versionId;
@@ -363,7 +365,6 @@
                 if (!versionSnap.exists()) break;
                 const versionData = versionSnap.data();
                 
-                // Lấy tất cả các tệp trong subcollection 'files'
                 const filesQuery = query(getFilesCollectionRef(appId, currentId));
                 const filesSnapshot = await getDocs(filesQuery);
                 filesSnapshot.forEach(fileDoc => {
@@ -435,7 +436,6 @@
                     versionItem.id = `version-${doc.id}`;
                     versionItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm';
                     if (doc.id === currentVersionId) versionItem.classList.add('selected');
-                    // Sử dụng Date.now() nên không cần toDate()
                     const date = new Date(version.timestamp).toLocaleString();
                     versionItem.innerHTML = `
                         <p class="font-medium text-gray-700">Phiên bản: ${version.versionIndex || 'N/A'}</p>
@@ -457,7 +457,6 @@
                 const filesMap = await getFilesForVersion(appId, versionId);
                 versionFilesList.innerHTML = '';
                 if (filesMap.size > 0) {
-                    // Sắp xếp file theo tên
                     const sortedFiles = Array.from(filesMap.values()).sort((a, b) => a.filename.localeCompare(b.filename));
                     sortedFiles.forEach(fileData => {
                         const fileItem = document.createElement('div');
@@ -493,7 +492,6 @@
             sendToAIButton.disabled = true;
 
             try {
-                // Nếu chưa có phiên chat, hãy bắt đầu một phiên mới với ngữ cảnh hiện tại
                 if (!chat) {
                     const currentCode = mainCodeEditor.value;
                     const history = [
@@ -512,16 +510,16 @@
                 const result = await chat.sendMessage(userPrompt);
                 const response = result.response;
                 let text = response.text();
-                text = text.replace(/^```[\w-]*\n/, '').replace(/\n```$/, ''); // Dọn dẹp markdown
+                text = text.replace(/^```[\w-]*\n/, '').replace(/\n```$/, '');
                 
-                mainCodeEditor.value = text; // Cập nhật trình soạn thảo với mã mới
-                aiPromptInput.value = ''; // Xóa yêu cầu sau khi gửi
+                mainCodeEditor.value = text;
+                aiPromptInput.value = '';
                 showMessage("AI đã cập nhật mã trong trình soạn thảo.");
 
             } catch (error) {
                 console.error("Error calling AI via Firebase:", error);
                 showMessage(`Lỗi khi gọi AI: ${error.message}`, 5000);
-                chat = null; // Reset phiên chat nếu có lỗi
+                chat = null;
             } finally {
                 aiButtonText.textContent = 'Gửi tới AI';
                 aiButtonSpinner.classList.add('hidden');
@@ -530,7 +528,6 @@
         };
 
         // --- Các hàm hành động ---
-        // **SỬA LỖI: Cập nhật hàm saveVersion**
         const saveVersion = async () => {
             if (!userId || !currentAppId) return showMessage('Vui lòng chọn một ứng dụng.');
             const filename = fileNameInput.value.trim();
@@ -542,15 +539,13 @@
                 const versionsSnapshot = await getDocs(versionsQuery);
                 const newVersionIndex = versionsSnapshot.size + 1;
 
-                // Sử dụng addDoc để tạo phiên bản mới và lấy ID
                 const newVersionRef = await addDoc(getVersionsCollectionRef(currentAppId), {
                     versionIndex: newVersionIndex,
                     notes: versionNotesInput.value.trim() || 'Không có ghi chú',
-                    timestamp: Date.now(), // Quay về dùng Date.now() cho ổn định
+                    timestamp: Date.now(),
                     parentVersionId: currentVersionId 
                 });
 
-                // Sử dụng addDoc để thêm tệp mới vào subcollection 'files'
                 await addDoc(getFilesCollectionRef(currentAppId, newVersionRef.id), {
                     filename,
                     content
@@ -574,7 +569,7 @@
             try {
                 await addDoc(getApplicationsCollectionRef(), { 
                     name: appName, 
-                    createdAt: Date.now() // Dùng Date.now()
+                    createdAt: Date.now()
                 });
                 showMessage(`Ứng dụng "${appName}" đã được thêm!`);
                 hideAddNewAppModal();
@@ -592,22 +587,29 @@
 
         const hideAddNewAppModal = () => addNewAppModal.classList.add('hidden');
 
-        // --- LOGIC CHO TÍNH NĂNG XEM TRƯỚC ---
+        // --- LOGIC CHO CÁC TÍNH NĂNG MỚI ---
         const showPreview = () => {
             const codeToPreview = mainCodeEditor.value;
             if (!codeToPreview) {
-                showMessage("Không có mã trong trình soạn thảo để xem trước.", 3000);
-                return;
+                return showMessage("Không có mã trong trình soạn thảo để xem trước.", 3000);
             }
-            // Sử dụng srcdoc để đưa mã HTML vào iframe một cách an toàn
             previewFrame.srcdoc = codeToPreview;
             previewModal.classList.remove('hidden');
         };
 
         const closePreview = () => {
             previewModal.classList.add('hidden');
-            // Xóa nội dung iframe để giải phóng bộ nhớ
             previewFrame.srcdoc = '';
+        };
+
+        const copyCode = () => {
+            const codeToCopy = mainCodeEditor.value;
+            if (!codeToCopy) {
+                return showMessage("Không có mã trong trình soạn thảo để sao chép.", 3000);
+            }
+            mainCodeEditor.select();
+            document.execCommand('copy');
+            showMessage('Mã đã được sao chép vào clipboard!');
         };
 
         // --- Gắn các sự kiện ---
@@ -625,9 +627,9 @@
             renderApplications(filteredApps);
         });
 
-        // Gắn sự kiện cho các nút xem trước
         previewBtn.addEventListener('click', showPreview);
         closePreviewBtn.addEventListener('click', closePreview);
+        copyBtn.addEventListener('click', copyCode);
 
     </script>
 </body>
