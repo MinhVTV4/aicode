@@ -161,43 +161,44 @@
         <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-8 flex flex-col">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">AI Canvas</h2>
             
-            <!-- Tệp trong phiên bản đã chọn (Đã di chuyển lên đây) -->
-            <h3 class="text-xl font-semibold mt-0 mb-3 text-gray-800">Tệp trong phiên bản đã chọn:</h3>
-            <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border p-3 rounded-lg bg-gray-50 mb-4">
-                <div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>
+            <!-- Block 1: Files and Version Info -->
+            <div class="bg-gray-50 p-4 rounded-lg shadow-inner mb-6">
+                <h3 class="text-xl font-semibold mb-3 text-gray-800">Tệp trong phiên bản đã chọn:</h3>
+                <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border p-3 rounded-lg bg-white mb-4">
+                    <div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="fileNameInput" class="block text-gray-700 text-sm font-bold mb-2">Tên tệp:</label>
+                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
+                    </div>
+                    <div>
+                        <label for="versionNotesInput" class="block text-gray-700 text-sm font-bold mb-2">Ghi chú phiên bản:</label>
+                        <input type="text" id="versionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
+                    </div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label for="fileNameInput" class="block text-gray-700 text-sm font-bold mb-2">Tên tệp:</label>
-                    <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
-                </div>
-                <div>
-                    <label for="versionNotesInput" class="block text-gray-700 text-sm font-bold mb-2">Ghi chú phiên bản:</label>
-                    <input type="text" id="versionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
-                </div>
-            </div>
-
-            <!-- Trình soạn thảo mã (đã thay đổi) -->
-            <div class="flex-grow flex flex-col mb-4">
+            <!-- Block 2: Code Editor -->
+            <div class="flex-grow flex flex-col mb-6 bg-gray-50 p-4 rounded-lg shadow-inner">
                 <label for="editableCodeContent" class="block text-gray-700 text-sm font-bold mb-2">Trình soạn thảo:</label>
-                <div id="editorContainer" class="relative flex-grow shadow-inner appearance-none border rounded-lg overflow-hidden">
-                    <!-- The actual editable code block, where highlight.js will apply highlighting -->
+                <div id="editorContainer" class="relative flex-grow shadow-inner appearance-none border rounded-lg overflow-hidden bg-white">
                     <pre class="absolute inset-0 overflow-y-auto p-3 font-mono text-sm bg-white text-gray-700 leading-relaxed whitespace-pre-wrap z-10" style="tab-size: 4;"><code id="editableCodeContent" contenteditable="true" class="block min-h-full focus:outline-none" style="caret-color: #3b82f6;"></code></pre>
-                    <!-- Placeholder text -->
                     <div id="editorPlaceholder" class="absolute inset-0 p-3 font-mono text-sm text-gray-400 pointer-events-none z-20">Chọn một tệp, hoặc yêu cầu AI tạo code mới...</div>
                 </div>
             </div>
 
-            <!-- KHUNG GIẢI THÍCH MỚI -->
-            <div class="mb-4">
+            <!-- Block 3: AI Explanation -->
+            <div class="mb-6 bg-gray-50 p-4 rounded-lg shadow-inner">
                 <label for="aiExplanationBox" class="block text-gray-700 text-sm font-bold mb-2">Giải thích từ AI:</label>
                 <div id="aiExplanationBox" class="w-full h-32 p-3 bg-gray-100 border rounded-lg overflow-y-auto text-sm">
                     <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>
                 </div>
             </div>
             
-            <div class="bg-gray-50 p-4 rounded-lg border">
+            <!-- Block 4: AI Prompt and Send Button -->
+            <div class="bg-gray-50 p-4 rounded-lg border shadow-inner">
                  <label for="aiPromptInput" class="block text-gray-700 text-sm font-bold mb-2">Yêu cầu cho AI:</label>
                  <textarea id="aiPromptInput" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="e.g., 'Thêm bình luận cho hàm này' hoặc 'Tạo một nút bấm màu đỏ'"></textarea>
                  
@@ -215,21 +216,23 @@
                 </button>
             </div>
 
-            <!-- NÚT HÀNH ĐỘNG -->
-            <div class="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
-                 <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
-                    Lưu phiên bản mới
-                </button>
-                <button id="copyBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
-                    Sao chép mã
-                </button>
-                <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
-                    Xem trước mã
-                </button>
-                <!-- NÚT XÓA (Soft Delete) -->
-                <button id="softDeleteVersionBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
-                    Xóa phiên bản
-                </button>
+            <!-- Block 5: Action Buttons -->
+            <div class="mt-6 p-4 bg-gray-50 rounded-lg border shadow-inner">
+                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                     <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                        Lưu phiên bản mới
+                    </button>
+                    <button id="copyBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                        Sao chép mã
+                    </button>
+                    <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                        Xem trước mã
+                    </button>
+                    <!-- NÚT XÓA (Soft Delete) -->
+                    <button id="softDeleteVersionBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                        Xóa phiên bản
+                    </button>
+                </div>
             </div>
         </section>
     </main>
@@ -593,6 +596,8 @@
             chat = null;
             currentVersionFiles.clear(); // Clear cached files
 
+            elements.currentAppNameSpan.textContent = appName; // FIX: Update app name display
+
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.querySelector(`#applicationsList [data-app-id="${appId}"]`)?.classList.add('selected');
 
@@ -662,7 +667,8 @@
                 } else {
                     elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Không tìm thấy tệp nào.</div>';
                 }
-            } catch (error) {
+            }
+            catch (error) {
                 console.error("Error loading files for version:", error);
                 elements.versionFilesList.innerHTML = '<div class="text-red-500 text-center py-2">Lỗi khi tải tệp.</div>';
             }
