@@ -154,7 +154,7 @@
         <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-100">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Applications</h2>
             <button id="addNewAppBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
-                Thêm mới
+                Add New Application
             </button>
             <div class="my-4">
                 <input type="text" id="searchInput" placeholder="Tìm kiếm ứng dụng..." class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
@@ -168,7 +168,7 @@
         <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-100">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
             <button id="showDeletedVersionsBtn" class="bg-red-400 hover:bg-red-500 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
-                Xem đã xóa
+                Xem phiên bản đã xóa
             </button>
             <div id="versionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
                 <div class="text-gray-500 text-center py-4">Select an application to see versions.</div>
@@ -223,6 +223,28 @@
                 <div id="aiExplanationBox" class="w-full h-32 p-4 bg-purple-50 border border-purple-200 rounded-lg overflow-y-auto text-sm text-gray-700 leading-relaxed">
                     <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>
                 </div>
+            </div>
+
+            <!-- NEW Block for Main Style Selection -->
+            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-blue-500">
+                <label for="mainStyleSelect" class="block text-gray-700 text-base font-bold mb-2">Chọn Phong cách Chủ đạo cho AI:</label>
+                <select id="mainStyleSelect" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                    <option value="">Không có phong cách cụ thể (mặc định)</option>
+                    <option value="Modern Minimalist">Hiện đại Tối giản (Modern Minimalist)</option>
+                    <option value="Clean and Professional">Sạch sẽ và Chuyên nghiệp (Clean and Professional)</option>
+                    <option value="Flat Design">Thiết kế phẳng (Flat Design)</option>
+                    <option value="Material Design">Material Design (Google)</option>
+                    <option value="Fluent Design">Fluent Design (Microsoft)</option>
+                    <option value="Glassmorphism">Glassmorphism (Hiệu ứng kính mờ)</option>
+                    <option value="Neumorphism">Neumorphism (Hiệu ứng nổi khối mềm)</option>
+                    <option value="Brutalism">Brutalism (Thô ráp, ít trang trí)</option>
+                    <option value="Dark Mode Aesthetic">Thẩm mỹ Chế độ Tối (Dark Mode Aesthetic)</option>
+                    <option value="Gradient-focused">Tập trung Gradient</option>
+                    <option value="Playful and Illustrative">Vui tươi và minh họa</option>
+                    <option value="Retro/Vintage Modern">Retro/Vintage Hiện đại</option>
+                    <option value="Skeuomorphic">Skeuomorphic (Mô phỏng vật lý)</option>
+                    <option value="Futuristic Tech">Công nghệ Tương lai</option>
+                </select>
             </div>
             
             <!-- Block 4: AI Prompt and Send Button -->
@@ -430,6 +452,7 @@
             aiExplanationBox: document.getElementById('aiExplanationBox'),
             aiPromptSuggestionsContainer: document.getElementById('aiPromptSuggestions'),
             toggleAiSuggestionsBtn: document.getElementById('toggleAiSuggestionsBtn'), // NEW: Toggle button for AI suggestions
+            mainStyleSelect: document.getElementById('mainStyleSelect'), // NEW: Reference to main style select
             // Actions
             saveVersionBtn: document.getElementById('saveVersionBtn'),
             copyBtn: document.getElementById('copyBtn'),
@@ -797,7 +820,12 @@
             elements.sendToAIButton.disabled = true;
 
             try {
-                const instruction = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy trả lời theo định dạng sau: Đầu tiên, đưa ra lời giải thích ngắn gọn. Sau đó, thêm một dòng chỉ chứa dấu phân cách '---CODE---'. Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ mà không có bất kỳ định dạng markdown nào khác.`;
+                const selectedStyle = elements.mainStyleSelect.value;
+                let instruction = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy trả lời theo định dạng sau: Đầu tiên, đưa ra lời giải thích ngắn gọn. Sau đó, thêm một dòng chỉ chứa dấu phân cách '---CODE---'. Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ mà không có bất kỳ định dạng markdown nào khác.`;
+
+                if (selectedStyle) {
+                    instruction += ` Khi tạo mã, hãy cố gắng tuân thủ phong cách thiết kế "${selectedStyle}".`;
+                }
 
                 if (!chat) {
                     const currentCode = mainCodeEditor.textContent;
