@@ -232,7 +232,10 @@
                  
                  <!-- NEW: AI Prompt Suggestions -->
                  <div class="mt-4">
-                     <label class="block text-gray-700 text-sm font-bold mb-2">Gợi ý câu lệnh AI:</label>
+                     <div class="flex items-center gap-2 mb-2">
+                        <label class="block text-gray-700 text-sm font-bold">Gợi ý câu lệnh AI:</label>
+                        <button id="toggleAiSuggestionsBtn" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-2 rounded-full">Ẩn</button>
+                     </div>
                      <div id="aiPromptSuggestions" class="flex flex-wrap gap-2">
                          <!-- Suggestions will be injected here by JS -->
                      </div>
@@ -426,6 +429,7 @@
             aiButtonSpinner: document.getElementById('aiButtonSpinner'),
             aiExplanationBox: document.getElementById('aiExplanationBox'),
             aiPromptSuggestionsContainer: document.getElementById('aiPromptSuggestions'),
+            toggleAiSuggestionsBtn: document.getElementById('toggleAiSuggestionsBtn'), // NEW: Toggle button for AI suggestions
             // Actions
             saveVersionBtn: document.getElementById('saveVersionBtn'),
             copyBtn: document.getElementById('copyBtn'),
@@ -538,6 +542,16 @@
                 fragment.appendChild(button);
             });
             elements.aiPromptSuggestionsContainer.appendChild(fragment);
+        }
+
+        // NEW: Hàm ẩn/hiện gợi ý AI
+        function toggleAiSuggestions() {
+            elements.aiPromptSuggestionsContainer.classList.toggle('hidden');
+            if (elements.aiPromptSuggestionsContainer.classList.contains('hidden')) {
+                elements.toggleAiSuggestionsBtn.textContent = 'Hiện';
+            } else {
+                elements.toggleAiSuggestionsBtn.textContent = 'Ẩn';
+            }
         }
 
         // --- Xác thực Firebase ---
@@ -1257,6 +1271,9 @@
         // NEW: Event listeners for edit app modal
         elements.confirmEditAppBtn.addEventListener('click', saveEditedApplicationName);
         elements.cancelEditAppBtn.addEventListener('click', hideEditAppModal);
+
+        // NEW: Event listener for AI suggestions toggle button
+        elements.toggleAiSuggestionsBtn.addEventListener('click', toggleAiSuggestions);
 
 
         elements.searchInput.addEventListener('input', (e) => {
