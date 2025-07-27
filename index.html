@@ -11,8 +11,8 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- highlight.js CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <!-- Monaco Editor CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs/loader.js"></script>
     
     <style>
         /* CSS tùy chỉnh để giao diện đẹp hơn và theo Material Design */
@@ -101,25 +101,9 @@
             width: 90vw; /* Ensure it applies */
         }
 
-        /* Thêm style cho trình soạn thảo mới */
-        #editorContainer {
+        /* NEW: Styles for Monaco editor container */
+        #monacoEditor {
             min-height: 200px; /* Đảm bảo chiều cao tối thiểu cho trình soạn thảo */
-        }
-        #editableCodeContent {
-            /* Đảm bảo nội dung có thể cuộn và trông giống textarea */
-            outline: none; /* Bỏ viền focus mặc định */
-            tab-size: 4; /* Kích thước tab */
-            min-height: 100%; /* Ensure contenteditable takes full height */
-            white-space: pre-wrap; /* Ensure wrapping within pre */
-            word-break: break-all; /* Break long words */
-            caret-color: #1e88e5; /* Material Blue-600 for caret */
-        }
-        /* Adjusted placeholder z-index to be lower than content for better interaction */
-        #editorPlaceholder {
-            z-index: 5; /* Lower than editableCodeContent's z-index */
-        }
-        #editableCodeContent[contenteditable="true"] {
-            z-index: 10;
         }
     </style>
 </head>
@@ -166,7 +150,7 @@
         <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-200">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Applications</h2>
             <button id="addNewAppBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
-                Thêm mới
+                Add New Application
             </button>
             <div class="my-4">
                 <input type="text" id="searchInput" placeholder="Tìm kiếm ứng dụng..." class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
@@ -180,7 +164,7 @@
         <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-200">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
             <button id="showDeletedVersionsBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
-                Xem PB đã xóa
+                Xem phiên bản đã xóa
             </button>
             <div id="versionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
                 <div class="text-gray-500 text-center py-4">Select an application to see versions.</div>
@@ -214,13 +198,10 @@
                 </div>
             </div>
 
-            <!-- Block 2: Code Editor -->
+            <!-- Block 2: Code Editor (Monaco Editor) -->
             <div class="flex-grow flex flex-col mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                <label for="editableCodeContent" class="block text-gray-700 text-base font-bold mb-2">Trình soạn thảo:</label>
-                <div id="editorContainer" class="relative flex-grow shadow-inner border border-gray-300 rounded-lg overflow-hidden bg-gray-50">
-                    <pre class="absolute inset-0 overflow-y-auto p-4 font-mono text-sm bg-gray-50 text-gray-800 leading-relaxed whitespace-pre-wrap z-10" style="tab-size: 4;"><code id="editableCodeContent" contenteditable="true" class="block min-h-full focus:outline-none" style="caret-color: #3b82f6;"></code></pre>
-                    <div id="editorPlaceholder" class="absolute inset-0 p-4 font-mono text-sm text-gray-400 pointer-events-none z-5">Chọn một tệp, hoặc yêu cầu AI tạo code mới...</div>
-                </div>
+                <label for="monacoEditor" class="block text-gray-700 text-base font-bold mb-2">Trình soạn thảo:</label>
+                <div id="monacoEditor" class="relative flex-grow shadow-inner border border-gray-300 rounded-lg overflow-hidden bg-gray-50" style="min-height: 200px;"></div>
                 <!-- NEW: Copy Code button moved here -->
                 <div class="mt-4 flex justify-end">
                     <button id="copyBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0">
@@ -379,10 +360,6 @@
         </div>
     </div>
 
-
-    <!-- highlight.js JS - Đã di chuyển lên đây để đảm bảo tải trước script module -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-
     <!-- Firebase SDK và script tùy chỉnh -->
     <script type="module">
         // Import các module cần thiết từ Firebase (sử dụng phiên bản 12.0.0 như code gốc)
@@ -428,6 +405,7 @@
         let allApps = []; // Cache all apps for filtering
         let chat = null; // **BIẾN MỚI: Lưu trữ phiên trò chuyện với AI**
         let currentVersionFiles = new Map(); // Store files for the currently selected version to avoid re-fetching
+        let monacoInstance; // **NEW: Monaco Editor instance**
 
         // DOM References
         const elements = {
@@ -453,9 +431,7 @@
             editVersionNotesBtn: document.getElementById('editVersionNotesBtn'),
             saveEditedVersionNotesBtn: document.getElementById('saveEditedVersionNotesBtn'),
             newVersionNotesInput: document.getElementById('newVersionNotesInput'), // new input for new version
-            editorContainer: document.getElementById('editorContainer'),
-            editableCodeContent: document.getElementById('editableCodeContent'),
-            editorPlaceholder: document.getElementById('editorPlaceholder'),
+            monacoEditor: document.getElementById('monacoEditor'), // **NEW: Monaco editor container**
             aiPromptInput: document.getElementById('aiPromptInput'),
             sendToAIButton: document.getElementById('sendToAIButton'),
             aiButtonText: document.getElementById('aiButtonText'),
@@ -496,8 +472,6 @@
             cancelEditAppBtn: document.getElementById('cancelEditAppBtn'),
         };
 
-        const mainCodeEditor = elements.editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
-
         const aiPromptSuggestions = [
             "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:",
             "Thêm CSS để căn giữa nội dung trang và đặt màu nền là màu xanh nhạt (#e0f7fa).",
@@ -506,37 +480,52 @@
             "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn."
         ];
 
-        // --- highlight.js script ---
-        function applyHighlighting() {
-            if (typeof hljs === 'undefined') return;
-
-            // Xóa tất cả các lớp ngôn ngữ cũ để tránh xung đột
-            mainCodeEditor.className = mainCodeEditor.className.split(' ')
-                                     .filter(cls => !cls.startsWith('language-'))
-                                     .join(' ');
-
-            const filename = elements.fileNameInput.value.trim();
-            let langClass = '';
-
-            // Gán lớp ngôn ngữ dựa trên phần mở rộng của tên tệp
+        // --- Monaco Editor Initialization ---
+        const getMonacoLanguage = (filename) => {
             if (filename.endsWith('.html') || filename.endsWith('.htm')) {
-                langClass = 'language-xml'; // highlight.js sử dụng 'xml' cho HTML
+                return 'html';
             } else if (filename.endsWith('.css')) {
-                langClass = 'language-css';
-            } else if (filename.endsWith('.js') || filename.endsWith('.json')) {
-                langClass = 'language-javascript'; // hoặc 'json'
-            } else {
-                // Mặc định là HTML (xml) hoặc văn bản thuần nếu không có phần mở rộng cụ thể
-                // Thường thì AI sẽ trả về hỗn hợp HTML/JS/CSS, nên 'xml' là một lựa chọn chung tốt.
-                langClass = 'language-xml'; 
+                return 'css';
+            } else if (filename.endsWith('.js')) {
+                return 'javascript';
+            } else if (filename.endsWith('.json')) {
+                return 'json';
+            } else if (filename.endsWith('.ts')) {
+                return 'typescript';
+            } else if (filename.endsWith('.py')) {
+                return 'python';
+            } else if (filename.endsWith('.java')) {
+                return 'java';
+            } else if (filename.endsWith('.php')) {
+                return 'php';
+            } else if (filename.endsWith('.xml')) {
+                return 'xml';
             }
-            
-            if (langClass) {
-                mainCodeEditor.classList.add(langClass);
+            return 'plaintext'; // Default to plain text
+        };
+
+        const initializeMonacoEditor = () => {
+            if (!elements.monacoEditor) {
+                console.error("Monaco editor container not found.");
+                return;
             }
 
-            hljs.highlightElement(mainCodeEditor); 
-        }
+            require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' } });
+            require(['vs/editor/editor.main'], function () {
+                monacoInstance = monaco.editor.create(elements.monacoEditor, {
+                    value: 'Chọn một tệp, hoặc yêu cầu AI tạo code mới...',
+                    language: 'plaintext',
+                    theme: 'vs-light', // You can try 'vs-dark' or 'hc-black'
+                    readOnly: true, // Initially read-only
+                    minimap: { enabled: false },
+                    fontSize: 14,
+                    tabSize: 4,
+                    insertSpaces: true,
+                    autoClosingQuotes: 'always',
+                    automaticLayout: true // Crucial for responsive resizing
+                });
+            });
+        };
 
         // --- Hàm tiện ích ---
         function showMessage(message, duration = 3000) {
@@ -552,15 +541,6 @@
 
         function showAuthError(message) {
             elements.authErrorMsg.textContent = message;
-        }
-
-        // --- Logic Placeholder cho trình soạn thảo ---
-        function toggleEditorPlaceholder() {
-            if (mainCodeEditor.textContent.trim() === '') {
-                elements.editorPlaceholder.style.display = 'block';
-            } else {
-                elements.editorPlaceholder.style.display = 'none';
-            }
         }
 
         // NEW: Hàm render gợi ý câu lệnh AI
@@ -598,8 +578,10 @@
                 elements.authSection.classList.add('hidden');
                 elements.mainAppContent.classList.remove('hidden');
                 elements.mainAppContent.classList.add('grid');
+                if (!monacoInstance) { // Initialize Monaco only once after user logs in
+                    initializeMonacoEditor();
+                }
                 loadApplications();
-                toggleEditorPlaceholder();
                 renderAiPromptSuggestions();
             } else {
                 userId = null;
@@ -608,6 +590,10 @@
                 elements.authSection.classList.remove('hidden');
                 elements.mainAppContent.classList.add('hidden');
                 elements.mainAppContent.classList.remove('grid');
+                if (monacoInstance) {
+                    monacoInstance.setValue('Vui lòng đăng nhập để sử dụng trình soạn thảo.');
+                    monacoInstance.setRawOptions({ readOnly: true });
+                }
             }
         });
 
@@ -712,9 +698,10 @@
             document.querySelector(`#applicationsList [data-app-id="${appId}"]`)?.classList.add('selected');
 
             loadVersions(appId);
-            mainCodeEditor.textContent = '';
-            applyHighlighting();
-            toggleEditorPlaceholder();
+            if (monacoInstance) {
+                monacoInstance.setValue('Chọn một tệp, hoặc yêu cầu AI tạo code mới...');
+                monacoInstance.setRawOptions({ readOnly: true, language: 'plaintext' });
+            }
             elements.fileNameInput.value = '';
             elements.versionNotesInput.value = ''; // Clear selected version notes
             elements.versionNotesInput.disabled = true; // Disable it
@@ -807,11 +794,11 @@
 
         const loadFileIntoEditor = (filename) => {
             const fileData = currentVersionFiles.get(filename);
-            if (fileData) {
+            if (fileData && monacoInstance) {
                 elements.fileNameInput.value = fileData.filename;
-                mainCodeEditor.textContent = fileData.content;
-                applyHighlighting();
-                toggleEditorPlaceholder();
+                monacoInstance.setValue(fileData.content);
+                monaco.editor.setModelLanguage(monacoInstance.getModel(), getMonacoLanguage(filename));
+                monacoInstance.setRawOptions({ readOnly: false }); // Make editable when a file is loaded
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                 chat = null;
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
@@ -825,6 +812,7 @@
             }
             const userPrompt = elements.aiPromptInput.value.trim();
             if (!userPrompt) return showMessage("Vui lòng nhập yêu cầu cho AI.");
+            if (!monacoInstance) return showMessage("Trình soạn thảo chưa được khởi tạo.", 3000);
 
             elements.aiButtonText.textContent = 'AI đang tạo code cho bạn... vui lòng đợi tới khi hoàn thành';
             elements.aiButtonSpinner.classList.remove('hidden');
@@ -839,7 +827,7 @@
                 }
 
                 if (!chat) {
-                    const currentCode = mainCodeEditor.textContent;
+                    const currentCode = monacoInstance.getValue();
                     const history = [
                         {
                             role: "user",
@@ -867,9 +855,17 @@
                 }
                 
                 elements.aiExplanationBox.innerHTML = explanation.replace(/\n/g, '<br>');
-                mainCodeEditor.textContent = code;
-                applyHighlighting();
-                toggleEditorPlaceholder();
+                monacoInstance.setValue(code);
+                // Try to set language based on potential filename after AI generation
+                const currentFilename = elements.fileNameInput.value.trim();
+                if (currentFilename) {
+                    monaco.editor.setModelLanguage(monacoInstance.getModel(), getMonacoLanguage(currentFilename));
+                } else {
+                    // If no filename, try to infer or default to HTML as AI often generates it
+                    const inferredLang = code.includes('<html') ? 'html' : 'plaintext';
+                    monaco.editor.setModelLanguage(monacoInstance.getModel(), inferredLang);
+                }
+                monacoInstance.setRawOptions({ readOnly: false }); // Ensure editable after AI generates
                 elements.aiPromptInput.value = '';
                 showMessage("AI đã cập nhật mã và cung cấp giải thích.");
 
@@ -887,8 +883,9 @@
         // --- Các hàm hành động ---
         const saveVersion = async () => {
             if (!userId || !currentAppId) return showMessage('Vui lòng chọn một ứng dụng.');
+            if (!monacoInstance) return showMessage('Trình soạn thảo chưa sẵn sàng.');
             const filename = elements.fileNameInput.value.trim();
-            const content = mainCodeEditor.textContent;
+            const content = monacoInstance.getValue(); // Get content from Monaco
             const newVersionNotes = elements.newVersionNotesInput.value.trim(); // Use the new input for new version notes
             
             if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
@@ -912,9 +909,8 @@
                 });
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
-                mainCodeEditor.textContent = '';
-                applyHighlighting();
-                toggleEditorPlaceholder();
+                monacoInstance.setValue(''); // Clear editor
+                monacoInstance.setRawOptions({ readOnly: true, language: 'plaintext' }); // Make read-only
                 elements.fileNameInput.value = '';
                 elements.newVersionNotesInput.value = ''; // Clear this input after saving
                 // Note: elements.versionNotesInput is for selected version, so it's not cleared here.
@@ -977,7 +973,8 @@
         };
 
         const showPreview = () => {
-            const codeToPreview = mainCodeEditor.textContent;
+            if (!monacoInstance) return showMessage('Trình soạn thảo chưa sẵn sàng.');
+            const codeToPreview = monacoInstance.getValue(); // Get content from Monaco
             if (!codeToPreview) {
                 return showMessage("Không có mã trong trình soạn thảo để xem trước.", 3000);
             }
@@ -994,7 +991,8 @@
 
 
         const copyCode = () => {
-            const codeToCopy = mainCodeEditor.textContent;
+            if (!monacoInstance) return showMessage('Trình soạn thảo chưa sẵn sàng.');
+            const codeToCopy = monacoInstance.getValue(); // Get content from Monaco
             if (!codeToCopy) {
                 return showMessage("Không có mã trong trình soạn thảo để sao chép.", 3000);
             }
@@ -1126,9 +1124,10 @@
                     currentVersionFiles.clear();
 
                     elements.currentAppNameSpan.textContent = "No App Selected";
-                    mainCodeEditor.textContent = '';
-                    applyHighlighting();
-                    toggleEditorPlaceholder();
+                    if (monacoInstance) {
+                        monacoInstance.setValue('Chọn một ứng dụng để bắt đầu.');
+                        monacoInstance.setRawOptions({ readOnly: true, language: 'plaintext' });
+                    }
                     elements.fileNameInput.value = '';
                     elements.versionNotesInput.value = '';
                     elements.versionNotesInput.disabled = true;
@@ -1170,9 +1169,10 @@
                 
                 showMessage('Phiên bản đã được chuyển vào thùng rác!');
                 currentVersionId = null;
-                mainCodeEditor.textContent = '';
-                applyHighlighting();
-                toggleEditorPlaceholder();
+                if (monacoInstance) {
+                    monacoInstance.setValue('');
+                    monacoInstance.setRawOptions({ readOnly: true, language: 'plaintext' });
+                }
                 elements.fileNameInput.value = '';
                 elements.newVersionNotesInput.value = ''; // Clear new version notes
                 elements.versionNotesInput.value = ''; // Clear selected version notes
@@ -1227,8 +1227,8 @@
                             <p class="text-xs text-gray-400">Đã xóa vào: ${deletedAtDate}</p>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
-                            <button class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 restore-btn shadow-md">Khôi phục</button>
-                            <button class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 permanent-delete-btn shadow-md">Xóa vĩnh viễn</button>
+                            <button class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 restore-btn shadow-md" data-version-id="${doc.id}">Khôi phục</button>
+                            <button class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 permanent-delete-btn shadow-md" data-version-id="${doc.id}">Xóa vĩnh viễn</button>
                         </div>
                     `;
                     fragment.appendChild(versionItem);
@@ -1359,10 +1359,15 @@
 
         // Event delegation for deleted versions modal buttons
         elements.deletedVersionsList.addEventListener('click', (e) => {
-            if (e.target.classList.contains('restore-btn') && currentAppId) {
-                restoreVersion(currentAppId, e.target.dataset.versionId);
-            } else if (e.target.classList.contains('permanent-delete-btn') && currentAppId) {
-                permanentDeleteVersion(currentAppId, e.target.dataset.versionId);
+            const clickedBtn = e.target.closest('button');
+            if (!clickedBtn) return;
+            const versionId = clickedBtn.dataset.versionId;
+            if (!versionId) return;
+
+            if (clickedBtn.classList.contains('restore-btn') && currentAppId) {
+                restoreVersion(currentAppId, versionId);
+            } else if (clickedBtn.classList.contains('permanent-delete-btn') && currentAppId) {
+                permanentDeleteVersion(currentAppId, versionId);
             }
         });
 
@@ -1375,40 +1380,7 @@
             }
         });
 
-        // Gắn sự kiện cho trình soạn thảo mới
-        mainCodeEditor.addEventListener('input', () => {
-            applyHighlighting();
-            toggleEditorPlaceholder();
-        });
-        mainCodeEditor.addEventListener('focus', () => {
-            elements.editorPlaceholder.style.display = 'none';
-        });
-        mainCodeEditor.addEventListener('blur', () => {
-            toggleEditorPlaceholder();
-        });
-
-        // Xử lý phím Tab trong contenteditable
-        mainCodeEditor.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const selection = window.getSelection();
-                const range = selection.getRangeAt(0);
-                
-                const tabNode = document.createTextNode('\t');
-                range.insertNode(tabNode);
-                
-                range.setStartAfter(tabNode);
-                range.setEndAfter(tabNode);
-                selection.removeAllRanges();
-                selection.addRange(range);
-
-                applyHighlighting();
-                toggleEditorPlaceholder();
-            }
-        });
-
-        // Initial calls
-        toggleEditorPlaceholder();
+        // Initial calls (Moved initializeMonacoEditor inside onAuthStateChanged)
         renderAiPromptSuggestions();
     </script>
 </body>
