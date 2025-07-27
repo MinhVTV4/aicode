@@ -168,17 +168,22 @@
                 <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border border-gray-300 p-3 rounded-lg bg-gray-50 mb-4">
                     <div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>
                 </div>
+                
+                <!-- Nút THÊM TỆP MỚI -->
+                <button id="addNewFileBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md mb-4 w-full" disabled>
+                    Thêm Tệp Mới
+                </button>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="fileNameInput" class="block text-gray-700 text-base font-bold mb-2">Tên tệp:</label>
-                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
+                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" disabled>
                     </div>
                     <div>
                         <label for="versionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú phiên bản đã chọn:</label>
                         <div class="flex gap-2">
                             <input type="text" id="versionNotesInput" placeholder="Chưa chọn phiên bản" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" disabled>
-                            <button id="editVersionNotesBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg shadow-md flex-shrink-0" style="min-width: 80px;">Sửa</button>
+                            <button id="editVersionNotesBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg shadow-md flex-shrink-0" style="min-width: 80px;" disabled>Sửa</button>
                             <button id="saveEditedVersionNotesBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg shadow-md hidden flex-shrink-0" style="min-width: 80px;">Lưu</button>
                         </div>
                     </div>
@@ -380,7 +385,8 @@
         let userId = null;
         let allApps = [];
         let chat = null;
-        let currentVersionFiles = new Map();
+        let currentVersionFiles = new Map(); // Stores files for the currently selected version
+        let currentSelectedFilename = null; // Tracks which file is selected in the UI list and editor
         let monacoEditor; // Monaco Editor instance
 
         const elements = {
@@ -438,6 +444,7 @@
             deletedVersionsModal: document.getElementById('deletedVersionsModal'),
             deletedVersionsList: document.getElementById('deletedVersionsList'),
             closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
+            addNewFileBtn: document.getElementById('addNewFileBtn'), // New element
         };
 
         const aiPromptSuggestions = [
@@ -558,11 +565,11 @@
                 const filesSnapshot = await getDocs(query(getCollections.files(appId, currentId)));
                 filesSnapshot.forEach(fileDoc => {
                     const fileData = fileDoc.data();
-                    if (!files.has(fileData.filename)) {
+                    if (!files.has(fileData.filename)) { // Only add if not already present from a newer version
                         files.set(fileData.filename, { ...fileData, id: fileDoc.id, versionId: currentId });
                     }
                 });
-                currentId = versionData.parentVersionId || null;
+                currentId = versionData.parentVersionId || null; // Traverse up to parent version
             }
             return files;
         };
@@ -599,10 +606,32 @@
             }, (error) => console.error("Error loading applications:", error));
         };
 
+        // New function to render the files list
+        const renderVersionFilesList = () => {
+            elements.versionFilesList.innerHTML = '';
+            if (currentVersionFiles.size > 0) {
+                const sortedFiles = Array.from(currentVersionFiles.values()).sort((a, b) => a.filename.localeCompare(b.filename));
+                const fragment = document.createDocumentFragment();
+                sortedFiles.forEach(fileData => {
+                    const fileItem = document.createElement('div');
+                    // Check if this file is the one currently loaded in the editor (and thus selected in the UI)
+                    const isSelected = fileData.filename === currentSelectedFilename; 
+                    fileItem.className = `list-item bg-white p-2 rounded-lg cursor-pointer shadow-sm text-sm ${isSelected ? 'selected' : ''}`;
+                    fileItem.textContent = fileData.filename;
+                    fileItem.dataset.filename = fileData.filename;
+                    fragment.appendChild(fileItem);
+                });
+                elements.versionFilesList.appendChild(fragment);
+            } else {
+                elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Không tìm thấy tệp nào.</div>';
+            }
+        };
+
         const selectApplication = (appId, appName) => {
             currentAppId = appId;
             currentAppName = appName;
             currentVersionId = null;
+            currentSelectedFilename = null; // Clear selected file when new app is selected
             chat = null;
             currentVersionFiles.clear();
 
@@ -613,12 +642,18 @@
             loadVersions(appId);
             if (monacoEditor) monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
             elements.fileNameInput.value = '';
+            elements.fileNameInput.disabled = true; // Disable until a file is selected or added
             elements.versionNotesInput.value = '';
             elements.versionNotesInput.disabled = true;
-            elements.editVersionNotesBtn.classList.remove('hidden');
+            elements.editVersionNotesBtn.classList.add('hidden'); // Hide edit button if no version selected
             elements.saveEditedVersionNotesBtn.classList.add('hidden');
             elements.newVersionNotesInput.value = '';
-            elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
+            
+            // Disable buttons when no version is selected
+            elements.addNewFileBtn.disabled = true; 
+            elements.editVersionNotesBtn.disabled = true;
+
+            renderVersionFilesList(); // Ensure file list is cleared/reset
             elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
             elements.aiPromptInput.value = '';
         };
@@ -646,37 +681,31 @@
 
         const selectVersion = async (appId, versionId) => {
             currentVersionId = versionId;
+            currentSelectedFilename = null; // Clear previous file selection when new version is selected
             chat = null;
             elements.aiPromptInput.value = '';
             document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
             document.querySelector(`#versionsList [data-version-id="${versionId}"]`)?.classList.add('selected');
-            elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
             elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+            if (monacoEditor) monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
+            elements.fileNameInput.value = ''; // Clear filename input
+            elements.fileNameInput.disabled = false; // Enable filename input now that a version is selected
+
+            // Enable buttons when a version is selected
+            elements.addNewFileBtn.disabled = false;
+            elements.editVersionNotesBtn.classList.remove('hidden'); // Show edit button
+            elements.editVersionNotesBtn.disabled = false; // Enable edit notes button
+            elements.saveEditedVersionNotesBtn.classList.add('hidden'); // Ensure save edited notes is hidden
 
             try {
                 const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
                 elements.versionNotesInput.value = versionSnap.exists() ? (versionSnap.data().notes || 'Không có ghi chú') : 'Phiên bản không tồn tại.';
                 elements.versionNotesInput.disabled = true;
-                elements.editVersionNotesBtn.classList.remove('hidden');
-                elements.saveEditedVersionNotesBtn.classList.add('hidden');
                 elements.newVersionNotesInput.value = '';
 
                 currentVersionFiles = await getFilesForVersion(appId, versionId);
-                elements.versionFilesList.innerHTML = '';
-                if (currentVersionFiles.size > 0) {
-                    const sortedFiles = Array.from(currentVersionFiles.values()).sort((a, b) => a.filename.localeCompare(b.filename));
-                    const fragment = document.createDocumentFragment();
-                    sortedFiles.forEach(fileData => {
-                        const fileItem = document.createElement('div');
-                        fileItem.className = 'list-item bg-white p-2 rounded-lg cursor-pointer shadow-sm text-sm';
-                        fileItem.textContent = fileData.filename;
-                        fileItem.dataset.filename = fileData.filename;
-                        fragment.appendChild(fileItem);
-                    });
-                    elements.versionFilesList.appendChild(fragment);
-                } else {
-                    elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Không tìm thấy tệp nào.</div>';
-                }
+                renderVersionFilesList(); // Use the new rendering function
+                
             } catch (error) {
                 console.error("Error loading version details:", error);
                 elements.versionFilesList.innerHTML = '<div class="text-red-500">Lỗi khi tải tệp.</div>';
@@ -687,6 +716,7 @@
             if (!monacoEditor) return;
             const fileData = currentVersionFiles.get(filename);
             if (fileData) {
+                currentSelectedFilename = filename; // Update the globally selected file
                 elements.fileNameInput.value = fileData.filename;
                 monacoEditor.setValue(fileData.content);
                 
@@ -702,6 +732,7 @@
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                 chat = null;
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                renderVersionFilesList(); // Re-render to update the selected state in the list
             }
         };
 
@@ -759,32 +790,63 @@
         // --- Action Functions ---
         const saveVersion = async () => {
             if (!userId || !currentAppId || !monacoEditor) return showMessage('Vui lòng chọn ứng dụng và đảm bảo trình soạn thảo sẵn sàng.');
-            const filename = elements.fileNameInput.value.trim();
-            const content = monacoEditor.getValue();
+
+            const editorFilename = elements.fileNameInput.value.trim();
+            const editorContent = monacoEditor.getValue();
             const newVersionNotes = elements.newVersionNotesInput.value.trim();
             
-            if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
+            // If there's content in the editor, ensure a filename is provided and update the map.
+            if (editorContent && !editorFilename) {
+                return showMessage("Vui lòng nhập tên tệp cho nội dung trong trình soạn thảo.", 3000);
+            }
+            if (editorContent) {
+                // Update the currentVersionFiles map with the latest content from the editor
+                // If it's a new file, it gets added. If existing, its content is updated.
+                currentVersionFiles.set(editorFilename, { filename: editorFilename, content: editorContent });
+            }
+
+            if (currentVersionFiles.size === 0) {
+                return showMessage("Không có tệp nào để lưu trong phiên bản này. Vui lòng thêm tệp.", 3000);
+            }
 
             try {
-                const versionsSnapshot = await getDocs(query(getCollections.versions(currentAppId), where('deleted', '!=', true)));
-                const newVersionRef = await addDoc(getCollections.versions(currentAppId), {
+                const versionsRef = getCollections.versions(currentAppId);
+                const versionsSnapshot = await getDocs(query(versionsRef, where('deleted', '!=', true)));
+                
+                const newVersionRef = await addDoc(versionsRef, {
                     versionIndex: versionsSnapshot.size + 1,
                     notes: newVersionNotes || 'Không có ghi chú',
                     timestamp: Date.now(),
-                    parentVersionId: currentVersionId,
+                    parentVersionId: currentVersionId, // Link to the previous version
                     deleted: false
                 });
-                await addDoc(getCollections.files(currentAppId, newVersionRef.id), { filename, content });
+
+                const filesPromises = [];
+                // Iterate through the `currentVersionFiles` map to save all files associated with this new version
+                for (const [filename, fileData] of currentVersionFiles.entries()) {
+                    filesPromises.push(addDoc(getCollections.files(currentAppId, newVersionRef.id), {
+                        filename: fileData.filename,
+                        content: fileData.content
+                    }));
+                }
+                await Promise.all(filesPromises);
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
+                
+                // Immediately select the newly created version to refresh UI
+                selectVersion(currentAppId, newVersionRef.id);
+
+                // Reset editor and related inputs after successful save
                 monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
                 elements.fileNameInput.value = '';
                 elements.newVersionNotesInput.value = '';
                 elements.aiPromptInput.value = '';
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                currentSelectedFilename = null; // No file selected in editor after save
+
             } catch (error) {
                 console.error("Error saving version:", error);
-                showMessage('Lưu phiên bản thất bại.', 5000);
+                showMessage(`Lưu phiên bản thất bại: ${error.message}`, 5000);
             }
         };
 
@@ -808,8 +870,6 @@
             setPreviewMode('desktop'); 
         };
         
-        // --- Other functions (addNewApplication, modals, soft-delete, etc.) remain largely the same ---
-        // ... (The rest of the JS functions: addNewApplication, modals, softDelete, restore, etc. are omitted for brevity but are the same as before)
         const addNewApplication = async () => {
             if (!userId) return showMessage('Vui lòng đăng nhập.');
             const appName = elements.newAppNameInput.value.trim();
@@ -964,6 +1024,61 @@
         elements.confirmEditAppBtn.addEventListener('click', saveEditedApplicationName);
         elements.cancelEditAppBtn.addEventListener('click', hideEditAppModal);
         elements.toggleAiSuggestionsBtn.addEventListener('click', toggleAiSuggestions);
+        elements.addNewFileBtn.addEventListener('click', () => {
+            if (!currentAppId || !currentVersionId) {
+                showMessage('Vui lòng chọn một ứng dụng và phiên bản trước khi thêm tệp.', 4000);
+                return;
+            }
+
+            const filename = prompt('Nhập tên tệp mới (ví dụ: style.css, script.js, index.html):');
+            if (!filename) return; // User cancelled
+
+            const trimmedFilename = filename.trim();
+            if (trimmedFilename === '') {
+                showMessage('Tên tệp không được để trống.', 3000);
+                return;
+            }
+
+            if (currentVersionFiles.has(trimmedFilename)) {
+                showMessage(`Tệp "${trimmedFilename}" đã tồn tại trong phiên bản hiện tại. Vui lòng chọn tên khác.`, 4000);
+                return;
+            }
+
+            // Prepare empty content and language based on extension
+            let initialContent = '';
+            let lang = 'plaintext';
+            if (trimmedFilename.endsWith('.html')) {
+                initialContent = `<!DOCTYPE html>\n<html lang="vi">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>${trimmedFilename.replace('.html', '')}</title>\n</head>\n<body>\n    <!-- Nội dung của bạn ở đây -->\n</body>\n</html>`;
+                lang = 'html';
+            } else if (trimmedFilename.endsWith('.css')) {
+                initialContent = `/* Styles for ${trimmedFilename.replace('.css', '')} */\n`;
+                lang = 'css';
+            } else if (trimmedFilename.endsWith('.js')) {
+                initialContent = `// JavaScript for ${trimmedFilename.replace('.js', '')}\n`;
+                lang = 'javascript';
+            } else if (trimmedFilename.endsWith('.json')) {
+                initialContent = `{}`;
+                lang = 'json';
+            } else if (trimmedFilename.endsWith('.md')) {
+                initialContent = `# ${trimmedFilename.replace('.md', '')}\n`;
+                lang = 'markdown';
+            }
+
+            // Update UI
+            elements.fileNameInput.value = trimmedFilename;
+            monacoEditor.setValue(initialContent);
+            monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
+            
+            // Set this file as currently selected for UI rendering
+            currentSelectedFilename = trimmedFilename;
+
+            // Add to currentVersionFiles map (temporarily, will be saved on next version save)
+            currentVersionFiles.set(trimmedFilename, { filename: trimmedFilename, content: initialContent });
+
+            renderVersionFilesList(); // Re-render files list to show the new file and mark it selected
+
+            showMessage(`Đã tạo tệp mới: "${trimmedFilename}". Vui lòng sửa đổi và bấm 'Lưu phiên bản mới' để lưu các thay đổi.`, 6000);
+        });
 
         elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
@@ -986,7 +1101,10 @@
         });
         elements.versionFilesList.addEventListener('click', (e) => {
             const fileItem = e.target.closest('.list-item');
-            if (fileItem) loadFileIntoEditor(fileItem.dataset.filename);
+            if (fileItem) {
+                const filename = fileItem.dataset.filename;
+                loadFileIntoEditor(filename);
+            }
         });
         elements.deletedVersionsList.addEventListener('click', (e) => {
             const button = e.target.closest('button');
