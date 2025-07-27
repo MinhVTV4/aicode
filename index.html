@@ -105,6 +105,19 @@
         #monacoEditor {
             min-height: 200px; /* Đảm bảo chiều cao tối thiểu cho trình soạn thảo */
         }
+
+        /* NEW: Styles for Diff Modal */
+        #diffModal .monaco-editor-background {
+            background-color: #f8fafc; /* Tailwind gray-50 or something light */
+        }
+
+        #monacoDiffEditorContainer {
+            min-height: 60vh; /* Minimum height for diff editor */
+            width: 100%;
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -278,6 +291,10 @@
                     <button id="previewBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
                         Xem trước mã
                     </button>
+                    <!-- NEW: Compare with Previous Button -->
+                    <button id="compareWithPreviousBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full" disabled>
+                        So sánh với phiên bản trước
+                    </button>
                     <!-- NÚT XÓA (Soft Delete) -->
                     <button id="softDeleteVersionBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
                         Xóa phiên bản
@@ -360,6 +377,19 @@
         </div>
     </div>
 
+    <!-- NEW: MODAL TRÌNH XEM SO SÁNH (DIFF VIEWER) -->
+    <div id="diffModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 class="text-xl font-semibold" id="diffModalTitle">So sánh phiên bản</h3>
+                <button id="closeDiffModalBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div class="p-4 flex-grow flex flex-col">
+                <div id="monacoDiffEditorContainer" class="flex-grow"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDK và script tùy chỉnh -->
     <script type="module">
         // Import các module cần thiết từ Firebase (sử dụng phiên bản 12.0.0 như code gốc)
@@ -406,6 +436,7 @@
         let chat = null; // **BIẾN MỚI: Lưu trữ phiên trò chuyện với AI**
         let currentVersionFiles = new Map(); // Store files for the currently selected version to avoid re-fetching
         let monacoInstance; // **NEW: Monaco Editor instance**
+        let monacoDiffInstance; // **NEW: Monaco Diff Editor instance**
 
         // DOM References
         const elements = {
@@ -445,6 +476,7 @@
             copyBtn: document.getElementById('copyBtn'),
             previewBtn: document.getElementById('previewBtn'),
             softDeleteVersionBtn: document.getElementById('softDeleteVersionBtn'),
+            compareWithPreviousBtn: document.getElementById('compareWithPreviousBtn'), // NEW: Compare button
             // Modals & Messages
             messageBox: document.getElementById('messageBox'),
             messageContent: document.getElementById('messageContent'),
@@ -470,6 +502,11 @@
             editAppNameInput: document.getElementById('editAppNameInput'),
             confirmEditAppBtn: document.getElementById('confirmEditAppBtn'),
             cancelEditAppBtn: document.getElementById('cancelEditAppBtn'),
+            // NEW: Diff Modal elements
+            diffModal: document.getElementById('diffModal'),
+            closeDiffModalBtn: document.getElementById('closeDiffModalBtn'),
+            monacoDiffEditorContainer: document.getElementById('monacoDiffEditorContainer'),
+            diffModalTitle: document.getElementById('diffModalTitle') // NEW: Diff Modal Title
         };
 
         const aiPromptSuggestions = [
@@ -522,6 +559,30 @@
                     tabSize: 4,
                     insertSpaces: true,
                     autoClosingQuotes: 'always',
+                    automaticLayout: true // Crucial for responsive resizing
+                });
+            });
+        };
+
+        // NEW: Monaco Diff Editor Initialization
+        const initializeMonacoDiffEditor = () => {
+            if (!elements.monacoDiffEditorContainer) {
+                console.error("Monaco diff editor container not found.");
+                return;
+            }
+            require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' } });
+            require(['vs/editor/editor.main'], function () {
+                if (monacoDiffInstance) {
+                    monacoDiffInstance.dispose(); // Dispose previous instance if exists
+                }
+                monacoDiffInstance = monaco.editor.createDiffEditor(elements.monacoDiffEditorContainer, {
+                    readOnly: true,
+                    enableSplitViewResizing: true,
+                    renderSideBySide: true,
+                    originalEditable: false,
+                    theme: 'vs-light',
+                    minimap: { enabled: false },
+                    fontSize: 14,
                     automaticLayout: true // Crucial for responsive resizing
                 });
             });
@@ -627,6 +688,7 @@
             files: (appId, versionId) => collection(db, `users/${userId}/applications/${appId}/versions/${versionId}/files`)
         };
 
+        // Modified getFilesForVersion to return all files (including inherited)
         const getFilesForVersion = async (appId, versionId) => {
             const files = new Map();
             let currentId = versionId;
@@ -640,7 +702,7 @@
                 const filesSnapshot = await getDocs(filesQuery);
                 filesSnapshot.forEach(fileDoc => {
                     const fileData = fileDoc.data();
-                    if (!files.has(fileData.filename)) {
+                    if (!files.has(fileData.filename)) { // Only add if not already present (from a newer version)
                         files.set(fileData.filename, { ...fileData, id: fileDoc.id, versionId: currentId });
                     }
                 });
@@ -649,6 +711,18 @@
             }
             return files;
         };
+
+        // NEW: Get content of a specific file from a specific version (not traversing parent chain, just that version)
+        const getFileContentFromSpecificVersion = async (appId, versionId, filename) => {
+            if (!versionId || !filename) return '';
+            const filesQuery = query(getCollections.files(appId, versionId), where('filename', '==', filename));
+            const filesSnapshot = await getDocs(filesQuery);
+            if (!filesSnapshot.empty) {
+                return filesSnapshot.docs[0].data().content;
+            }
+            return '';
+        };
+
 
         // --- Các hàm render giao diện ---
         const renderApplications = (appsToRender) => {
@@ -688,7 +762,7 @@
         const selectApplication = (appId, appName) => {
             currentAppId = appId;
             currentAppName = appName;
-            currentVersionId = null;
+            currentVersionId = null; 
             chat = null;
             currentVersionFiles.clear(); // Clear cached files
 
@@ -711,6 +785,7 @@
             elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
             elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
             elements.aiPromptInput.value = '';
+            elements.compareWithPreviousBtn.disabled = true; // Disable compare button
         };
 
         const loadVersions = (appId) => {
@@ -750,6 +825,7 @@
 
             elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
             elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+            elements.compareWithPreviousBtn.disabled = true; // Initially disable compare button
 
             try {
                 // Fetch version notes first
@@ -802,6 +878,7 @@
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                 chat = null;
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                elements.compareWithPreviousBtn.disabled = false; // Enable compare button when a file is loaded
             }
         };
 
@@ -899,7 +976,7 @@
                     versionIndex: newVersionIndex,
                     notes: newVersionNotes || 'Không có ghi chú', // Use new notes input
                     timestamp: Date.now(),
-                    parentVersionId: currentVersionId,
+                    parentVersionId: currentVersionId, // Link to the previously selected version
                     deleted: false
                 });
 
@@ -916,6 +993,7 @@
                 // Note: elements.versionNotesInput is for selected version, so it's not cleared here.
                 elements.aiPromptInput.value = '';
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                elements.compareWithPreviousBtn.disabled = true; // Disable compare button
             } catch (error) {
                 console.error("Error saving version:", error);
                 showMessage('Lưu phiên bản thất bại.', 5000);
@@ -1138,6 +1216,7 @@
                     elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
                     elements.aiPromptInput.value = '';
                     elements.versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chọn một ứng dụng để xem phiên bản.</div>';
+                    elements.compareWithPreviousBtn.disabled = true; // Disable compare button
                 }
 
                 // loadApplications() will be triggered by onSnapshot automatically
@@ -1183,6 +1262,7 @@
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
                 elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>';
                 chat = null;
+                elements.compareWithPreviousBtn.disabled = true; // Disable compare button
 
                 loadVersions(currentAppId);
             } catch (error) {
@@ -1281,6 +1361,86 @@
             }
         };
 
+        // NEW: Diff Viewer Functions
+        const showDiffModal = (originalContent, modifiedContent, language, filename) => {
+            if (!monacoDiffInstance) {
+                initializeMonacoDiffEditor();
+                // Wait for Monaco to load if it's the first time
+                setTimeout(() => {
+                    if (monacoDiffInstance) {
+                        monacoDiffInstance.setModel({
+                            original: monaco.editor.createModel(originalContent, language),
+                            modified: monaco.editor.createModel(modifiedContent, language)
+                        });
+                    }
+                }, 100); // Small delay to ensure editor is ready
+            } else {
+                monacoDiffInstance.setModel({
+                    original: monaco.editor.createModel(originalContent, language),
+                    modified: monaco.editor.createModel(modifiedContent, language)
+                });
+            }
+            elements.diffModalTitle.textContent = `So sánh: ${filename}`;
+            elements.diffModal.classList.remove('hidden');
+        };
+
+        const closeDiffModal = () => {
+            elements.diffModal.classList.add('hidden');
+            if (monacoDiffInstance) {
+                monacoDiffInstance.dispose(); // Dispose the diff editor instance
+                monacoDiffInstance = null; // Clear the reference
+            }
+            // Clear the container to prevent issues on re-creation
+            elements.monacoDiffEditorContainer.innerHTML = '';
+        };
+
+        const handleCompareWithPrevious = async () => {
+            if (!userId || !currentAppId || !currentVersionId) {
+                return showMessage('Vui lòng chọn một phiên bản và một tệp để so sánh.', 3000);
+            }
+            const filename = elements.fileNameInput.value.trim();
+            if (!filename) {
+                return showMessage('Vui lòng chọn một tệp để so sánh.', 3000);
+            }
+            
+            const modifiedContent = monacoInstance.getValue();
+            const language = getMonacoLanguage(filename);
+
+            try {
+                const currentVersionDocRef = doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`);
+                const currentVersionSnap = await getDoc(currentVersionDocRef);
+                
+                let originalContent = '';
+                let originalVersionLabel = 'Phiên bản gốc (không có phiên bản cha)';
+
+                if (currentVersionSnap.exists()) {
+                    const currentVersionData = currentVersionSnap.data();
+                    if (currentVersionData.parentVersionId) {
+                        const parentVersionId = currentVersionData.parentVersionId;
+                        // Get all files for the parent version's chain
+                        const parentVersionFiles = await getFilesForVersion(currentAppId, parentVersionId);
+                        const parentFile = parentVersionFiles.get(filename);
+                        if (parentFile) {
+                            originalContent = parentFile.content;
+                            originalVersionLabel = `Phiên bản cha (ID: ${parentVersionId.substring(0, 6)}...)`;
+                        } else {
+                            originalVersionLabel = `Phiên bản cha (tệp "${filename}" không tồn tại)`;
+                        }
+                    }
+                }
+
+                // Update diff modal title to indicate versions being compared
+                const currentVersionLabel = `Phiên bản hiện tại (ID: ${currentVersionId.substring(0, 6)}...)`;
+                elements.diffModalTitle.textContent = `So sánh: ${filename} (Trái: ${originalVersionLabel} | Phải: ${currentVersionLabel})`;
+
+                showDiffModal(originalContent, modifiedContent, language, filename);
+
+            } catch (error) {
+                console.error("Error comparing versions:", error);
+                showMessage(`Lỗi khi so sánh phiên bản: ${error.message}`, 5000);
+            }
+        };
+
 
         // --- Gắn các sự kiện (sử dụng Event Delegation khi có thể) ---
         elements.loginBtn.addEventListener('click', () => handleAuth(false));
@@ -1298,6 +1458,8 @@
         elements.softDeleteVersionBtn.addEventListener('click', softDeleteVersion);
         elements.showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
         elements.closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
+        elements.compareWithPreviousBtn.addEventListener('click', handleCompareWithPrevious); // NEW: Compare button event
+        elements.closeDiffModalBtn.addEventListener('click', closeDiffModal); // NEW: Close Diff Modal
 
         // NEW: Event listeners for preview mode buttons
         elements.mobileViewBtn.addEventListener('click', () => setPreviewMode('mobile'));
