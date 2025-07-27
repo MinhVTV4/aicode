@@ -286,6 +286,21 @@
         </div>
     </div>
 
+    <!-- NEW: Modal để sửa tên ứng dụng -->
+    <div id="editAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-2xl font-bold mb-6 text-gray-800">Sửa tên ứng dụng</h3>
+            <div class="mb-4">
+                <label for="editAppNameInput" class="block text-gray-700 text-base font-bold mb-2">Tên ứng dụng:</label>
+                <input type="text" id="editAppNameInput" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+            </div>
+            <div class="flex justify-end gap-4">
+                <button id="cancelEditAppBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Hủy</button>
+                <button id="confirmEditAppBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Lưu</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL XEM TRƯỚC -->
     <div id="previewModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
         <div id="previewModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col"> <!-- Added ID here -->
@@ -432,6 +447,11 @@
             desktopViewBtn: document.getElementById('desktopViewBtn'),
             previewFrameContainer: document.getElementById('previewFrameContainer'),
             previewModalContent: document.getElementById('previewModalContent'), // NEW: Add this
+            // NEW: Edit App Modal elements
+            editAppModal: document.getElementById('editAppModal'),
+            editAppNameInput: document.getElementById('editAppNameInput'),
+            confirmEditAppBtn: document.getElementById('confirmEditAppBtn'),
+            cancelEditAppBtn: document.getElementById('cancelEditAppBtn'),
         };
 
         const mainCodeEditor = elements.editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
@@ -604,9 +624,15 @@
                 const appItem = document.createElement('div');
                 appItem.className = 'list-item bg-white hover:bg-blue-50 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm flex justify-between items-center';
                 if (appData.id === currentAppId) appItem.classList.add('selected');
-                appItem.innerHTML = `<span class="font-medium text-gray-700">${index + 1}. ${appData.name}</span>`;
                 appItem.dataset.appId = appData.id;
                 appItem.dataset.appName = appData.name;
+                appItem.innerHTML = `
+                    <div class="flex-grow font-medium text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap">${index + 1}. ${appData.name}</div>
+                    <div class="flex-shrink-0 flex gap-1">
+                        <button class="edit-app-btn bg-yellow-400 hover:bg-yellow-500 text-white text-xs font-bold py-1 px-2 rounded-md transition duration-200" title="Sửa">Sửa</button>
+                        <button class="delete-app-btn bg-red-400 hover:bg-red-500 text-white text-xs font-bold py-1 px-2 rounded-md transition duration-200" title="Xóa">Xóa</button>
+                    </div>
+                `;
                 fragment.appendChild(appItem);
             });
             elements.applicationsList.appendChild(fragment);
@@ -960,6 +986,113 @@
             }
         };
 
+        // NEW: Edit Application Functions
+        let appToEditId = null;
+
+        const showEditAppModal = (appId, appName) => {
+            if (!userId) return showMessage('Vui lòng đăng nhập để sửa ứng dụng.');
+            appToEditId = appId;
+            elements.editAppNameInput.value = appName;
+            elements.editAppModal.classList.remove('hidden');
+            elements.editAppNameInput.focus();
+        };
+
+        const hideEditAppModal = () => {
+            appToEditId = null;
+            elements.editAppModal.classList.add('hidden');
+        };
+
+        const saveEditedApplicationName = async () => {
+            if (!userId || !appToEditId) return;
+            const newName = elements.editAppNameInput.value.trim();
+            if (!newName) return showMessage('Tên ứng dụng không được để trống.');
+
+            try {
+                const appRef = doc(db, `users/${userId}/applications/${appToEditId}`);
+                await updateDoc(appRef, {
+                    name: newName
+                });
+                showMessage(`Ứng dụng "${newName}" đã được cập nhật!`);
+                hideEditAppModal();
+                // If the currently selected app was edited, update its display
+                if (currentAppId === appToEditId) {
+                    elements.currentAppNameSpan.textContent = newName;
+                }
+            } catch (error) {
+                console.error("Error updating application name:", error);
+                showMessage('Cập nhật tên ứng dụng thất bại.', 5000);
+            }
+        };
+
+        // NEW: Delete Application Functions (Cascading Delete)
+        const deleteApplicationCascade = async (appId) => {
+            if (!userId || !appId) return;
+
+            if (!confirm('CẢNH BÁO: Bạn có chắc chắn muốn XÓA ỨNG DỤNG NÀY VĨNH VIỄN? Hành động này sẽ xóa TẤT CẢ các phiên bản và tệp liên quan đến ứng dụng này, và không thể hoàn tác.')) {
+                return;
+            }
+
+            try {
+                showMessage('Đang xóa ứng dụng và tất cả dữ liệu liên quan...', 0); // Show persistent message
+
+                // 1. Get all versions for the app
+                const versionsRef = getCollections.versions(appId);
+                const versionsSnapshot = await getDocs(versionsRef);
+
+                const deletePromises = [];
+
+                // 2. For each version, get and delete all files, then delete the version
+                for (const versionDoc of versionsSnapshot.docs) {
+                    const versionId = versionDoc.id;
+                    const filesRef = getCollections.files(appId, versionId);
+                    const filesSnapshot = await getDocs(filesRef);
+
+                    filesSnapshot.forEach((fileDoc) => {
+                        deletePromises.push(deleteDoc(fileDoc.ref));
+                    });
+                    deletePromises.push(deleteDoc(versionDoc.ref)); // Delete the version itself
+                }
+
+                await Promise.all(deletePromises); // Wait for all files and versions to be deleted
+
+                // 3. Finally, delete the application document itself
+                await deleteDoc(doc(db, `users/${userId}/applications/${appId}`));
+
+                showMessage('Ứng dụng và tất cả dữ liệu liên quan đã được xóa vĩnh viễn!');
+
+                // Reset UI if the deleted app was currently selected
+                if (currentAppId === appId) {
+                    currentAppId = null;
+                    currentAppName = null;
+                    currentVersionId = null;
+                    chat = null;
+                    currentVersionFiles.clear();
+
+                    elements.currentAppNameSpan.textContent = "No App Selected";
+                    mainCodeEditor.textContent = '';
+                    applyHighlighting();
+                    toggleEditorPlaceholder();
+                    elements.fileNameInput.value = '';
+                    elements.versionNotesInput.value = '';
+                    elements.versionNotesInput.disabled = true;
+                    elements.editVersionNotesBtn.classList.remove('hidden');
+                    elements.saveEditedVersionNotesBtn.classList.add('hidden');
+                    elements.newVersionNotesInput.value = '';
+                    elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một ứng dụng và phiên bản để xem tệp.</div>';
+                    elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                    elements.aiPromptInput.value = '';
+                    elements.versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chọn một ứng dụng để xem phiên bản.</div>';
+                }
+
+                // loadApplications() will be triggered by onSnapshot automatically
+
+            } catch (error) {
+                console.error("Error deleting application and its data:", error);
+                showMessage(`Lỗi khi xóa ứng dụng: ${error.message}`, 5000);
+            }
+        };
+
+
         // --- LOGIC CHO THÙNG RÁC ---
 
         const softDeleteVersion = async () => {
@@ -1117,6 +1250,11 @@
         elements.editVersionNotesBtn.addEventListener('click', editSelectedVersionNotes);
         elements.saveEditedVersionNotesBtn.addEventListener('click', saveEditedVersionNotes);
 
+        // NEW: Event listeners for edit app modal
+        elements.confirmEditAppBtn.addEventListener('click', saveEditedApplicationName);
+        elements.cancelEditAppBtn.addEventListener('click', hideEditAppModal);
+
+
         elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             const filteredApps = allApps.filter(app => app.name.toLowerCase().includes(searchTerm));
@@ -1126,8 +1264,20 @@
         // Event delegation for applications list
         elements.applicationsList.addEventListener('click', (e) => {
             const appItem = e.target.closest('.list-item');
-            if (appItem && appItem.dataset.appId) {
-                selectApplication(appItem.dataset.appId, appItem.dataset.appName);
+            if (!appItem) return; // Clicked outside a list item
+
+            const appId = appItem.dataset.appId;
+            const appName = appItem.dataset.appName;
+
+            if (e.target.classList.contains('edit-app-btn')) {
+                e.stopPropagation(); // Prevent selecting the app
+                showEditAppModal(appId, appName);
+            } else if (e.target.classList.contains('delete-app-btn')) {
+                e.stopPropagation(); // Prevent selecting the app
+                deleteApplicationCascade(appId);
+            } else {
+                // Only select the app if not clicking on the buttons
+                selectApplication(appId, appName);
             }
         });
 
