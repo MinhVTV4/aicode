@@ -154,16 +154,6 @@
                 <div>
                     <label for="versionNotesInput" class="block text-gray-700 text-sm font-bold mb-2">Ghi chú phiên bản:</label>
                     <input type="text" id="versionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
-                    <!-- New button for editing notes -->
-                    <button id="editVersionNotesBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 text-sm rounded-lg shadow-md transition duration-300 mt-2 w-full hidden">
-                        Sửa ghi chú phiên bản hiện tại
-                    </button>
-                    <button id="saveEditedNotesBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-2 text-sm rounded-lg shadow-md transition duration-300 mt-2 w-full hidden">
-                        Lưu ghi chú đã sửa
-                    </button>
-                    <button id="cancelEditNotesBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-2 text-sm rounded-lg shadow-md transition duration-300 mt-2 w-full hidden">
-                        Hủy
-                    </button>
                 </div>
             </div>
 
@@ -189,6 +179,15 @@
             <div class="bg-gray-50 p-4 rounded-lg border">
                  <label for="aiPromptInput" class="block text-gray-700 text-sm font-bold mb-2">Yêu cầu cho AI:</label>
                  <textarea id="aiPromptInput" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="e.g., 'Thêm bình luận cho hàm này' hoặc 'Tạo một nút bấm màu đỏ'"></textarea>
+                 
+                 <!-- NEW: AI Prompt Suggestions -->
+                 <div class="mt-3">
+                     <label class="block text-gray-700 text-sm font-bold mb-2">Gợi ý câu lệnh AI:</label>
+                     <div id="aiPromptSuggestions" class="flex flex-wrap gap-2">
+                         <!-- Suggestions will be injected here by JS -->
+                     </div>
+                 </div>
+
                  <button id="sendToAIButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 mt-3 w-full flex items-center justify-center gap-2">
                     <span id="aiButtonText">Gửi tới AI</span>
                     <div id="aiButtonSpinner" class="spinner hidden"></div>
@@ -260,6 +259,9 @@
         </div>
     </div>
 
+
+    <!-- highlight.js JS - Đã di chuyển lên đây để đảm bảo tải trước script module -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
     <!-- Firebase SDK và script tùy chỉnh -->
     <script type="module">
@@ -357,17 +359,44 @@
         const deletedVersionsList = document.getElementById('deletedVersionsList');
         const closeDeletedVersionsModalBtn = document.getElementById('closeDeletedVersionsModalBtn');
 
-        // THAM CHIẾU DOM CHO TÍNH NĂNG SỬA GHI CHÚ PHIÊN BẢN
-        const editVersionNotesBtn = document.getElementById('editVersionNotesBtn');
-        const saveEditedNotesBtn = document.getElementById('saveEditedNotesBtn');
-        const cancelEditNotesBtn = document.getElementById('cancelEditNotesBtn');
-
+        // NEW: Tham chiếu DOM và dữ liệu cho gợi ý câu lệnh AI
+        const aiPromptSuggestionsContainer = document.getElementById('aiPromptSuggestions');
+        const aiPromptSuggestions = [
+            "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:", // CÂU LỆNH MỚI
+            "Thêm CSS để căn giữa nội dung trang và đặt màu nền là màu xanh nhạt (#e0f7fa).",
+            "Viết JavaScript để khi click nút 'Click me' sẽ hiển thị thông báo 'Bạn đã click!'",
+            "Giải thích đoạn mã HTML/CSS/JS này hoạt động như thế nào.",
+            "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn."
+        ];
 
         // --- highlight.js script ---
         // highlight.js được tải qua CDN, hàm hljs sẽ có sẵn
         // Khởi tạo highlight.js trên editor
         function applyHighlighting() {
             if (typeof hljs !== 'undefined') {
+                // Xóa tất cả các lớp ngôn ngữ cũ để tránh xung đột
+                mainCodeEditor.className = mainCodeEditor.className.split(' ').filter(cls => !cls.startsWith('language-')).join(' ');
+
+                const filename = fileNameInput.value.trim();
+                let langClass = '';
+
+                // Gán lớp ngôn ngữ dựa trên phần mở rộng của tên tệp
+                if (filename.endsWith('.html') || filename.endsWith('.htm')) {
+                    langClass = 'language-xml'; // highlight.js sử dụng 'xml' cho HTML
+                } else if (filename.endsWith('.css')) {
+                    langClass = 'language-css';
+                } else if (filename.endsWith('.js') || filename.endsWith('.json')) {
+                    langClass = 'language-javascript'; // hoặc 'json'
+                } else {
+                    // Mặc định là HTML (xml) hoặc văn bản thuần nếu không có phần mở rộng cụ thể
+                    // Thường thì AI sẽ trả về hỗn hợp HTML/JS/CSS, nên 'xml' là một lựa chọn chung tốt.
+                    langClass = 'language-xml'; 
+                }
+                
+                if (langClass) {
+                    mainCodeEditor.classList.add(langClass);
+                }
+
                 // hljs.highlightElement chỉ cần element đã có text content
                 // và có class ngôn ngữ nếu muốn chỉ định rõ, hoặc để highlight.js tự động nhận diện
                 hljs.highlightElement(mainCodeEditor); 
@@ -399,39 +428,21 @@
             }
         }
 
-        // --- Hàm tiện ích cho trạng thái nút ---
-        function setEditModeButtonsVisibility(editing) {
-            if (editing) {
-                editVersionNotesBtn.classList.add('hidden');
-                saveEditedNotesBtn.classList.remove('hidden');
-                cancelEditNotesBtn.classList.remove('hidden');
-                versionNotesInput.readOnly = false;
-                versionNotesInput.focus();
-            } else {
-                editVersionNotesBtn.classList.remove('hidden'); // Show edit button when not in editing mode
-                saveEditedNotesBtn.classList.add('hidden');
-                cancelEditNotesBtn.classList.add('hidden');
-                versionNotesInput.readOnly = true; // Make it read-only by default for selected versions
-            }
+        // NEW: Hàm render gợi ý câu lệnh AI
+        function renderAiPromptSuggestions() {
+            aiPromptSuggestionsContainer.innerHTML = ''; // Xóa bất kỳ gợi ý nào cũ
+            aiPromptSuggestions.forEach(prompt => {
+                const button = document.createElement('button');
+                button.textContent = prompt;
+                button.className = 'bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm py-1 px-3 rounded-md transition duration-200 whitespace-nowrap overflow-hidden text-ellipsis';
+                button.title = prompt; // Tooltip đầy đủ
+                button.addEventListener('click', () => {
+                    aiPromptInput.value = prompt; // Đặt giá trị cho textarea
+                    aiPromptInput.focus(); // Tập trung vào textarea
+                });
+                aiPromptSuggestionsContainer.appendChild(button);
+            });
         }
-
-        function setMainControlsState(enabled) {
-            fileNameInput.disabled = !enabled;
-            editableCodeContent.contentEditable = enabled; 
-            sendToAIButton.disabled = !enabled;
-            saveVersionBtn.disabled = !enabled;
-            copyBtn.disabled = !enabled;
-            previewBtn.disabled = !enabled;
-            softDeleteVersionBtn.disabled = !enabled;
-            aiPromptInput.disabled = !enabled;
-
-            if (!enabled) {
-                editableCodeContent.textContent = '';
-                applyHighlighting();
-                toggleEditorPlaceholder();
-            }
-        }
-
 
         // --- Xác thực Firebase ---
         onAuthStateChanged(auth, (user) => {
@@ -444,14 +455,8 @@
                 mainAppContent.classList.remove('hidden');
                 mainAppContent.classList.add('grid');
                 loadApplications();
-                
-                // Initial state: Enable main controls for creating new versions
-                setMainControlsState(true);
-                setEditModeButtonsVisibility(false); // Hide save/cancel, show edit (but edit is hidden by default if no version selected)
-                versionNotesInput.readOnly = false; // Make notes input editable by default for new versions
-                editVersionNotesBtn.classList.add('hidden'); // No version selected yet, hide edit button
-                toggleEditorPlaceholder(); 
-
+                toggleEditorPlaceholder(); // Initial check for editor placeholder
+                renderAiPromptSuggestions(); // NEW: Render gợi ý khi người dùng đăng nhập
             } else {
                 userId = null;
                 userEmailDisplay.classList.add('hidden');
@@ -519,16 +524,6 @@
             return files;
         };
 
-        // Add a function to get a specific version's data
-        const getVersionData = async (appId, versionId) => {
-            const versionRef = doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`);
-            const versionSnap = await getDoc(versionRef);
-            if (versionSnap.exists()) {
-                return { id: versionSnap.id, ...versionSnap.data() };
-            }
-            return null;
-        };
-
         // --- Các hàm render giao diện ---
         const renderApplications = (appsToRender) => {
             applicationsList.innerHTML = '';
@@ -565,23 +560,14 @@
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.getElementById(`app-${appId}`)?.classList.add('selected');
             loadVersions(appId); // Tải các phiên bản không bị xóa
-
-            // Reset UI for selected version and editor
-            mainCodeEditor.textContent = '';
-            applyHighlighting();
-            toggleEditorPlaceholder();
+            mainCodeEditor.textContent = ''; // Cập nhật textContent thay vì value
+            applyHighlighting(); // Áp dụng highlight sau khi reset
+            toggleEditorPlaceholder(); // Cập nhật placeholder
             fileNameInput.value = '';
             versionNotesInput.value = '';
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
-            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
-
-            // New: Reset notes editing state
-            setEditModeButtonsVisibility(false); // Hide save/cancel, show edit (which is then hidden)
-            versionNotesInput.readOnly = false; // Make it editable for new versions
-            editVersionNotesBtn.classList.add('hidden'); // No version selected yet, hide edit button
-
-            // New: Enable main controls for creating new versions
-            setMainControlsState(true);
+            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
+            aiPromptInput.value = ''; // Reset AI prompt input
         };
 
         const loadVersions = (appId) => {
@@ -618,27 +604,9 @@
             document.getElementById(`version-${versionId}`)?.classList.add('selected');
             versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
             aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
+            aiPromptInput.value = ''; // Reset AI prompt input
 
-            // Fetch the selected version's notes and update the input
             try {
-                const versionData = await getVersionData(appId, versionId);
-                if (versionData) {
-                    versionNotesInput.value = versionData.notes || '';
-                }
-
-                // Enable edit notes button and make notes input read-only by default
-                setEditModeButtonsVisibility(false); // Show edit button, hide save/cancel
-                editVersionNotesBtn.classList.remove('hidden'); // Ensure it's visible when a version is selected
-
-                // Disable main code editing UI when an old version is selected
-                // Users should fork (save a new version) rather than modify an old one in place
-                setMainControlsState(false);
-                mainCodeEditor.textContent = ''; // Clear editor when an old version is selected
-                applyHighlighting(); // Apply highlight on empty content to clear it
-                toggleEditorPlaceholder();
-                fileNameInput.value = ''; // Clear filename input
-
-
                 const filesMap = await getFilesForVersion(appId, versionId);
                 versionFilesList.innerHTML = '';
                 if (filesMap.size > 0) {
@@ -648,18 +616,13 @@
                         fileItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm';
                         fileItem.textContent = fileData.filename;
                         fileItem.onclick = () => {
+                            fileNameInput.value = fileData.filename; // Cập nhật tên tệp
                             mainCodeEditor.textContent = fileData.content; // Cập nhật textContent
                             applyHighlighting(); // Áp dụng highlight sau khi tải
                             toggleEditorPlaceholder(); // Cập nhật placeholder
-                            fileNameInput.value = fileData.filename;
                             showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                             chat = null; // Reset phiên chat khi tải tệp mới
                             aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
-
-                            // Re-enable main controls when a file is loaded for potential new version creation
-                            setMainControlsState(true); // Now user can edit this content and save as new version
-                            // But keep notes input read-only unless `editVersionNotesBtn` is clicked
-                            setEditModeButtonsVisibility(false); // Still show edit button for notes
                         };
                         versionFilesList.appendChild(fileItem);
                     });
@@ -744,9 +707,7 @@
             if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
 
             try {
-                // The notes input should be editable for new versions.
-                versionNotesInput.readOnly = false; // Ensure it's editable for new save
-
+                // Đảm bảo phiên bản mới không bị đánh dấu là đã xóa ngay từ đầu
                 const versionsQuery = query(getVersionsCollectionRef(currentAppId), where('deleted', '!=', true));
                 const versionsSnapshot = await getDocs(versionsQuery);
                 const newVersionIndex = versionsSnapshot.size + 1; // Index chỉ đếm các phiên bản đang hoạt động
@@ -755,7 +716,7 @@
                     versionIndex: newVersionIndex,
                     notes: versionNotesInput.value.trim() || 'Không có ghi chú',
                     timestamp: Date.now(),
-                    parentVersionId: currentVersionId, // This correctly sets the parent if a version was selected before creating new
+                    parentVersionId: currentVersionId,
                     deleted: false // Mặc định là không bị xóa
                 });
 
@@ -765,21 +726,13 @@
                 });
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
-                // Reset editor state for a fresh start after saving a new version
-                currentVersionId = null; // New version is created, so current selected version is implicitly 'none' or the new one
-                mainCodeEditor.textContent = '';
+                mainCodeEditor.textContent = ''; // Reset editor
                 applyHighlighting();
                 toggleEditorPlaceholder();
                 fileNameInput.value = '';
                 versionNotesInput.value = '';
                 aiPromptInput.value = '';
-                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
-                chat = null; // Reset AI chat after saving new version
-
-                // Re-enable main controls if they were disabled, or ensure they are ready for new input
-                setMainControlsState(true);
-                setEditModeButtonsVisibility(false); // Hide edit/save notes buttons
-
+                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
             } catch (error) {
                 console.error("Error saving version:", error);
                 showMessage('Lưu phiên bản thất bại.', 5000);
@@ -797,7 +750,8 @@
                 });
                 showMessage(`Ứng dụng "${appName}" đã được thêm!`);
                 hideAddNewAppModal();
-            } catch (error) {
+            }
+            catch (error) {
                 console.error("Error adding new application:", error);
                 showMessage('Thêm ứng dụng mới thất bại.', 5000);
             }
@@ -874,9 +828,6 @@
                 chat = null; // Đặt lại phiên chat AI
 
                 loadVersions(currentAppId); // Tải lại danh sách phiên bản đang hoạt động
-                setMainControlsState(true); // Re-enable main controls for creating new versions
-                setEditModeButtonsVisibility(false); // Hide edit notes buttons
-
             } catch (error) {
                 console.error("Error soft deleting version:", error);
                 showMessage(`Lỗi khi chuyển phiên bản vào thùng rác: ${error.message}`, 5000);
@@ -996,71 +947,6 @@
             }
         };
 
-        // --- LOGIC CHO SỬA GHI CHÚ PHIÊN BẢN ---
-        const enterEditNotesMode = async () => {
-            if (!userId || !currentAppId || !currentVersionId) {
-                return showMessage('Vui lòng chọn một phiên bản để sửa ghi chú.', 3000);
-            }
-            // Get current notes to populate
-            const versionData = await getVersionData(currentAppId, currentVersionId);
-            if (versionData) {
-                versionNotesInput.value = versionData.notes || '';
-            }
-            setEditModeButtonsVisibility(true); // Show save/cancel, make notes editable
-            setMainControlsState(false); // Temporarily disable other main controls
-            fileNameInput.disabled = true; // explicitly disable filename input
-        };
-
-        const exitEditNotesMode = () => {
-            setEditModeButtonsVisibility(false); // Hide save/cancel, show edit
-            
-            // Re-enable main controls only if a file is currently loaded in the editor
-            // or if no version is selected (to allow new version creation)
-            if (mainCodeEditor.textContent.trim() !== '' || currentVersionId === null) {
-                setMainControlsState(true);
-            } else {
-                // If a version is selected but no file loaded in editor, keep main controls disabled
-                setMainControlsState(false);
-            }
-            // If exiting edit mode for notes, and a version is selected, keep notes input read-only
-            if (currentVersionId) {
-                versionNotesInput.readOnly = true;
-                // Reset notes input value to original
-                getVersionData(currentAppId, currentVersionId).then(versionData => {
-                    if (versionData) versionNotesInput.value = versionData.notes || '';
-                });
-            } else {
-                // If no version selected, notes input should be editable for new versions
-                versionNotesInput.readOnly = false;
-                versionNotesInput.value = ''; // Clear for new version
-            }
-        };
-
-        const updateVersionNotes = async () => {
-            if (!userId || !currentAppId || !currentVersionId) {
-                return showMessage('Không có phiên bản nào được chọn để cập nhật.', 3000);
-            }
-            const newNotes = versionNotesInput.value.trim();
-            if (!newNotes) {
-                if (!confirm('Ghi chú trống. Bạn có muốn lưu ghi chú trống không?')) {
-                    // If user cancels, do not proceed with update, but do not exit edit mode immediately
-                    // user can correct the input
-                    return;
-                }
-            }
-
-            try {
-                const versionRef = doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`);
-                await updateDoc(versionRef, { notes: newNotes });
-                showMessage('Ghi chú phiên bản đã được cập nhật thành công!');
-                exitEditNotesMode();
-                loadVersions(currentAppId); // Reload versions to reflect changes in the list
-            } catch (error) {
-                console.error("Error updating version notes:", error);
-                showMessage(`Lỗi khi cập nhật ghi chú: ${error.message}`, 5000);
-            }
-        };
-
 
         // --- Gắn các sự kiện ---
         saveVersionBtn.addEventListener('click', saveVersion);
@@ -1086,29 +972,20 @@
         showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
         closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
 
-        // New event listeners for notes editing
-        editVersionNotesBtn.addEventListener('click', enterEditNotesMode);
-        saveEditedNotesBtn.addEventListener('click', updateVersionNotes);
-        cancelEditNotesBtn.addEventListener('click', exitEditNotesMode);
-
-        // Modify editor event listeners to handle disabled state
+        // Gắn sự kiện cho trình soạn thảo mới
         mainCodeEditor.addEventListener('input', () => {
-            if (editableCodeContent.contentEditable === 'false') return; // Check contentEditable status
             applyHighlighting();
             toggleEditorPlaceholder();
         });
         mainCodeEditor.addEventListener('focus', () => {
-            if (editableCodeContent.contentEditable === 'false') return;
             editorPlaceholder.style.display = 'none';
         });
         mainCodeEditor.addEventListener('blur', () => {
-            if (editableCodeContent.contentEditable === 'false') return;
             toggleEditorPlaceholder();
         });
 
         // Xử lý phím Tab trong contenteditable
         mainCodeEditor.addEventListener('keydown', (e) => {
-            if (editableCodeContent.contentEditable === 'false') return;
             if (e.key === 'Tab') {
                 e.preventDefault(); // Ngăn hành vi tab mặc định (chuyển focus)
                 const selection = window.getSelection();
@@ -1131,9 +1008,7 @@
 
         // Gọi hàm kiểm tra placeholder ban đầu
         toggleEditorPlaceholder();
-
+        renderAiPromptSuggestions(); // NEW: Gọi hàm render gợi ý khi trang tải
     </script>
-    <!-- highlight.js JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </body>
 </html>
