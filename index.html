@@ -27,19 +27,27 @@
         }
         button:hover:not(:disabled) {
             transform: translateY(-1px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.08); /* Stronger shadow on hover */
         }
+        button:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.06); /* Pressed effect */
+        }
+
         /* Kiểu cho các mục trong danh sách */
         .list-item {
             transition: all 0.2s ease;
+            border: 1px solid #e5e7eb; /* Add default border */
         }
         .list-item:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-color: #bfdbfe; /* blue-200 */
         }
         .list-item.selected {
              background-color: #dbeafe; /* blue-100 */
              border-left: 4px solid #3b82f6; /* blue-500 */
+             border-color: #93c5fd; /* blue-300 for overall border */
         }
         /* Biểu tượng tải */
         .spinner {
@@ -90,6 +98,16 @@
             /* Đảm bảo nội dung có thể cuộn và trông giống textarea */
             outline: none; /* Bỏ viền focus mặc định */
             tab-size: 4; /* Kích thước tab */
+            min-height: 100%; /* Ensure contenteditable takes full height */
+            white-space: pre-wrap; /* Ensure wrapping within pre */
+            word-break: break-all; /* Break long words */
+        }
+        /* Adjusted placeholder z-index to be lower than content for better interaction */
+        #editorPlaceholder {
+            z-index: 5; /* Lower than editableCodeContent's z-index */
+        }
+        #editableCodeContent[contenteditable="true"] {
+            z-index: 10;
         }
     </style>
 </head>
@@ -110,18 +128,18 @@
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
             <h2 class="text-3xl font-bold mb-6 text-center text-gray-800">Đăng nhập / Đăng ký</h2>
             <div class="mb-4">
-                <label for="emailInput" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
-                <input type="email" id="emailInput" placeholder="your@example.com" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500">
+                <label for="emailInput" class="block text-gray-700 text-base font-bold mb-2">Email:</label>
+                <input type="email" id="emailInput" placeholder="your@example.com" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
             </div>
             <div class="mb-6">
-                <label for="passwordInput" class="block text-gray-700 text-sm font-bold mb-2">Mật khẩu:</label>
-                <input type="password" id="passwordInput" placeholder="********" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500">
+                <label for="passwordInput" class="block text-gray-700 text-base font-bold mb-2">Mật khẩu:</label>
+                <input type="password" id="passwordInput" placeholder="********" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
             </div>
             <div class="flex flex-col sm:flex-row gap-4">
-                <button id="loginBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex-grow">
+                <button id="loginBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-5 rounded-lg shadow-md flex-grow">
                     Đăng nhập
                 </button>
-                <button id="registerBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 flex-grow">
+                <button id="registerBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg shadow-md flex-grow">
                     Đăng ký
                 </button>
             </div>
@@ -133,13 +151,13 @@
     <main id="mainAppContent" class="flex-grow container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 hidden">
         
         <!-- Cột trái: Danh sách ứng dụng (15%) -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col">
+        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-100">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Applications</h2>
-            <button id="addNewAppBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 mb-4 w-full">
+            <button id="addNewAppBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
                 Add New Application
             </button>
             <div class="my-4">
-                <input type="text" id="searchInput" placeholder="Tìm kiếm ứng dụng..." class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500">
+                <input type="text" id="searchInput" placeholder="Tìm kiếm ứng dụng..." class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
             </div>
             <div id="applicationsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
                 <div class="text-gray-500 text-center py-4">Loading applications...</div>
@@ -147,9 +165,9 @@
         </section>
 
         <!-- Cột giữa: Danh sách phiên bản (15%) -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col">
+        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-100">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
-            <button id="showDeletedVersionsBtn" class="bg-red-400 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 mb-4 w-full">
+            <button id="showDeletedVersionsBtn" class="bg-red-400 hover:bg-red-500 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
                 Xem phiên bản đã xóa
             </button>
             <div id="versionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
@@ -157,90 +175,90 @@
             </div>
         </section>
 
-        <!-- Cột phải: AI Canvas (70%) -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-8 flex flex-col">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-800">AI Canvas</h2>
+        <!-- Cột phải: AI Canvas (70%) - Refactored for better visuals -->
+        <section class="bg-white p-8 rounded-xl shadow-2xl col-span-1 lg:col-span-8 flex flex-col border border-gray-100">
+            <h2 class="text-3xl font-bold mb-6 text-gray-800">AI Canvas</h2>
             
             <!-- Block 1: Files and Version Info -->
-            <div class="bg-gray-50 p-4 rounded-lg shadow-inner mb-6">
-                <h3 class="text-xl font-semibold mb-3 text-gray-800">Tệp trong phiên bản đã chọn:</h3>
-                <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border p-3 rounded-lg bg-white mb-4">
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 mb-6">
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Tệp trong phiên bản đã chọn:</h3>
+                <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border border-gray-200 p-3 rounded-lg bg-gray-50 mb-4">
                     <div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="fileNameInput" class="block text-gray-700 text-sm font-bold mb-2">Tên tệp:</label>
-                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
+                        <label for="fileNameInput" class="block text-gray-700 text-base font-bold mb-2">Tên tệp:</label>
+                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
                     </div>
                     <div>
-                        <label for="versionNotesInput" class="block text-gray-700 text-sm font-bold mb-2">Ghi chú phiên bản đã chọn:</label>
+                        <label for="versionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú phiên bản đã chọn:</label>
                         <div class="flex gap-2">
-                            <input type="text" id="versionNotesInput" placeholder="Chưa chọn phiên bản" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" disabled>
-                            <button id="editVersionNotesBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg shadow-md transition duration-300 flex-shrink-0" style="min-width: 80px;">Sửa</button>
-                            <button id="saveEditedVersionNotesBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg shadow-md transition duration-300 hidden flex-shrink-0" style="min-width: 80px;">Lưu</button>
+                            <input type="text" id="versionNotesInput" placeholder="Chưa chọn phiên bản" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500" disabled>
+                            <button id="editVersionNotesBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg shadow-md flex-shrink-0" style="min-width: 80px;">Sửa</button>
+                            <button id="saveEditedVersionNotesBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg shadow-md hidden flex-shrink-0" style="min-width: 80px;">Lưu</button>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Block 2: Code Editor -->
-            <div class="flex-grow flex flex-col mb-6 bg-gray-50 p-4 rounded-lg shadow-inner">
-                <label for="editableCodeContent" class="block text-gray-700 text-sm font-bold mb-2">Trình soạn thảo:</label>
-                <div id="editorContainer" class="relative flex-grow shadow-inner appearance-none border rounded-lg overflow-hidden bg-white">
-                    <pre class="absolute inset-0 overflow-y-auto p-3 font-mono text-sm bg-white text-gray-700 leading-relaxed whitespace-pre-wrap z-10" style="tab-size: 4;"><code id="editableCodeContent" contenteditable="true" class="block min-h-full focus:outline-none" style="caret-color: #3b82f6;"></code></pre>
-                    <div id="editorPlaceholder" class="absolute inset-0 p-3 font-mono text-sm text-gray-400 pointer-events-none z-20">Chọn một tệp, hoặc yêu cầu AI tạo code mới...</div>
+            <div class="flex-grow flex flex-col mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <label for="editableCodeContent" class="block text-gray-700 text-base font-bold mb-2">Trình soạn thảo:</label>
+                <div id="editorContainer" class="relative flex-grow shadow-inner border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                    <pre class="absolute inset-0 overflow-y-auto p-4 font-mono text-sm bg-gray-50 text-gray-800 leading-relaxed whitespace-pre-wrap z-10" style="tab-size: 4;"><code id="editableCodeContent" contenteditable="true" class="block min-h-full focus:outline-none" style="caret-color: #3b82f6;"></code></pre>
+                    <div id="editorPlaceholder" class="absolute inset-0 p-4 font-mono text-sm text-gray-400 pointer-events-none z-5">Chọn một tệp, hoặc yêu cầu AI tạo code mới...</div>
                 </div>
             </div>
 
             <!-- Block 3: AI Explanation -->
-            <div class="mb-6 bg-gray-50 p-4 rounded-lg shadow-inner">
-                <label for="aiExplanationBox" class="block text-gray-700 text-sm font-bold mb-2">Giải thích từ AI:</label>
-                <div id="aiExplanationBox" class="w-full h-32 p-3 bg-gray-100 border rounded-lg overflow-y-auto text-sm">
+            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-purple-500"> <!-- Added border-l for distinction -->
+                <label for="aiExplanationBox" class="block text-gray-700 text-base font-bold mb-2">Giải thích từ AI:</label>
+                <div id="aiExplanationBox" class="w-full h-32 p-4 bg-purple-50 border border-purple-200 rounded-lg overflow-y-auto text-sm text-gray-700 leading-relaxed">
                     <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>
                 </div>
             </div>
             
             <!-- Block 4: AI Prompt and Send Button -->
-            <div class="bg-gray-50 p-4 rounded-lg border shadow-inner">
-                 <label for="aiPromptInput" class="block text-gray-700 text-sm font-bold mb-2">Yêu cầu cho AI:</label>
-                 <textarea id="aiPromptInput" rows="3" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700" placeholder="e.g., 'Thêm bình luận cho hàm này' hoặc 'Tạo một nút bấm màu đỏ'"></textarea>
+            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-lg">
+                 <label for="aiPromptInput" class="block text-gray-700 text-base font-bold mb-2">Yêu cầu cho AI:</label>
+                 <textarea id="aiPromptInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500" placeholder="e.g., 'Thêm bình luận cho hàm này' hoặc 'Tạo một nút bấm màu đỏ'"></textarea>
                  
                  <!-- NEW: AI Prompt Suggestions -->
-                 <div class="mt-3">
+                 <div class="mt-4">
                      <label class="block text-gray-700 text-sm font-bold mb-2">Gợi ý câu lệnh AI:</label>
                      <div id="aiPromptSuggestions" class="flex flex-wrap gap-2">
                          <!-- Suggestions will be injected here by JS -->
                      </div>
                  </div>
 
-                 <button id="sendToAIButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 mt-3 w-full flex items-center justify-center gap-2">
+                 <button id="sendToAIButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md mt-4 w-full flex items-center justify-center gap-2">
                     <span id="aiButtonText">Gửi tới AI</span>
                     <div id="aiButtonSpinner" class="spinner hidden"></div>
                 </button>
             </div>
 
             <!-- Block 5: Action Buttons -->
-            <div class="mt-6 p-4 bg-gray-50 rounded-lg border shadow-inner">
+            <div class="mt-6 p-6 bg-white rounded-xl border border-gray-200 shadow-lg">
                 <!-- NEW INPUT FIELD FOR NEW VERSION NOTES -->
                 <div class="mb-4">
-                    <label for="newVersionNotesInput" class="block text-gray-700 text-sm font-bold mb-2">Ghi chú cho phiên bản mới:</label>
-                    <input type="text" id="newVersionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700">
+                    <label for="newVersionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú cho phiên bản mới:</label>
+                    <input type="text" id="newVersionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
                 </div>
                 <!-- END NEW INPUT FIELD -->
 
-                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                     <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                     <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
                         Lưu phiên bản mới
                     </button>
-                    <button id="copyBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                    <button id="copyBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
                         Sao chép mã
                     </button>
-                    <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                    <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
                         Xem trước mã
                     </button>
                     <!-- NÚT XÓA (Soft Delete) -->
-                    <button id="softDeleteVersionBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 w-full">
+                    <button id="softDeleteVersionBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
                         Xóa phiên bản
                     </button>
                 </div>
@@ -258,8 +276,8 @@
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
             <h3 class="text-2xl font-bold mb-6 text-gray-800">Add New Application</h3>
             <div class="mb-4">
-                <label for="newAppNameInput" class="block text-gray-700 text-sm font-bold mb-2">Application Name:</label>
-                <input type="text" id="newAppNameInput" placeholder="e.g., 'My Blog App'" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500">
+                <label for="newAppNameInput" class="block text-gray-700 text-base font-bold mb-2">Application Name:</label>
+                <input type="text" id="newAppNameInput" placeholder="e.g., 'My Blog App'" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
             </div>
             <div class="flex justify-end gap-4">
                 <button id="cancelNewAppBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Cancel</button>
@@ -271,7 +289,7 @@
     <!-- MODAL XEM TRƯỚC -->
     <div id="previewModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
         <div id="previewModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col"> <!-- Added ID here -->
-            <div class="flex justify-between items-center p-4 border-b">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
                 <h3 class="text-xl font-semibold">Bản xem trước</h3>
                 <button id="closePreviewBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
             </div>
@@ -419,7 +437,7 @@
         const mainCodeEditor = elements.editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
 
         const aiPromptSuggestions = [
-            "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:", // CÂU LỆNH MỚI
+            "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:",
             "Thêm CSS để căn giữa nội dung trang và đặt màu nền là màu xanh nhạt (#e0f7fa).",
             "Viết JavaScript để khi click nút 'Click me' sẽ hiển thị thông báo 'Bạn đã click!'",
             "Giải thích đoạn mã HTML/CSS/JS này hoạt động như thế nào.",
@@ -490,7 +508,7 @@
             aiPromptSuggestions.forEach(prompt => {
                 const button = document.createElement('button');
                 button.textContent = prompt;
-                button.className = 'bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm py-1 px-3 rounded-md transition duration-200 whitespace-nowrap overflow-hidden text-ellipsis';
+                button.className = 'bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs py-1 px-3 rounded-full transition duration-200 cursor-pointer border border-blue-200 whitespace-nowrap overflow-hidden text-ellipsis';
                 button.title = prompt;
                 button.dataset.prompt = prompt; // Use dataset for click handler
                 fragment.appendChild(button);
@@ -584,7 +602,7 @@
             const fragment = document.createDocumentFragment();
             appsToRender.forEach((appData, index) => {
                 const appItem = document.createElement('div');
-                appItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm flex justify-between items-center';
+                appItem.className = 'list-item bg-white hover:bg-blue-50 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm flex justify-between items-center';
                 if (appData.id === currentAppId) appItem.classList.add('selected');
                 appItem.innerHTML = `<span class="font-medium text-gray-700">${index + 1}. ${appData.name}</span>`;
                 appItem.dataset.appId = appData.id;
@@ -643,7 +661,7 @@
                 snapshot.forEach(doc => {
                     const version = doc.data();
                     const versionItem = document.createElement('div');
-                    versionItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm';
+                    versionItem.className = 'list-item bg-white hover:bg-blue-50 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm';
                     if (doc.id === currentVersionId) versionItem.classList.add('selected');
                     const date = new Date(version.timestamp).toLocaleString();
                     versionItem.innerHTML = `
@@ -692,7 +710,7 @@
                     const fragment = document.createDocumentFragment();
                     sortedFiles.forEach(fileData => {
                         const fileItem = document.createElement('div');
-                        fileItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm';
+                        fileItem.className = 'list-item bg-white hover:bg-blue-50 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm';
                         fileItem.textContent = fileData.filename;
                         fileItem.dataset.filename = fileData.filename; // Store filename for click delegation
                         fragment.appendChild(fileItem);
@@ -704,7 +722,7 @@
             }
             catch (error) {
                 console.error("Error loading files or version notes for version:", error);
-                elements.versionFilesList.innerHTML = '<div class="text-red-500 text-center py-2">Lỗi khi tải tệp.</div>';
+                elements.versionFilesInput.value = '<div class="text-red-500 text-center py-2">Lỗi khi tải tệp.</div>';
                 elements.versionNotesInput.value = 'Lỗi khi tải ghi chú.';
             }
         };
