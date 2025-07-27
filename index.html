@@ -72,6 +72,16 @@
             max-width: 375px; /* Chiều rộng điển hình cho thiết bị di động */
         }
 
+        /* NEW: Styles for bigger desktop modal content */
+        #previewModalContent {
+            transition: max-width 0.3s ease-in-out, width 0.3s ease-in-out; /* Add width transition */
+        }
+
+        #previewModalContent.desktop-mode-active {
+            max-width: 90vw; /* Take 90% of viewport width for desktop view */
+            width: 90vw; /* Ensure it applies */
+        }
+
         /* Thêm style cho trình soạn thảo mới */
         #editorContainer {
             min-height: 200px; /* Đảm bảo chiều cao tối thiểu cho trình soạn thảo */
@@ -246,7 +256,7 @@
 
     <!-- MODAL XEM TRƯỚC -->
     <div id="previewModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col">
+        <div id="previewModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col"> <!-- Added ID here -->
             <div class="flex justify-between items-center p-4 border-b">
                 <h3 class="text-xl font-semibold">Bản xem trước</h3>
                 <button id="closePreviewBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
@@ -386,6 +396,7 @@
             mobileViewBtn: document.getElementById('mobileViewBtn'),
             desktopViewBtn: document.getElementById('desktopViewBtn'),
             previewFrameContainer: document.getElementById('previewFrameContainer'),
+            previewModalContent: document.getElementById('previewModalContent'), // NEW: Add this
         };
 
         const mainCodeEditor = elements.editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
@@ -817,12 +828,16 @@
         const setPreviewMode = (mode) => {
             if (mode === 'mobile') {
                 elements.previewFrameContainer.classList.add('mobile-view');
+                elements.previewModalContent.classList.remove('desktop-mode-active'); // NEW: Remove desktop size class
+
                 elements.mobileViewBtn.classList.remove('bg-gray-300', 'text-gray-800');
                 elements.mobileViewBtn.classList.add('bg-blue-500', 'text-white');
                 elements.desktopViewBtn.classList.remove('bg-blue-500', 'text-white');
                 elements.desktopViewBtn.classList.add('bg-gray-300', 'text-gray-800');
             } else { // 'desktop'
                 elements.previewFrameContainer.classList.remove('mobile-view');
+                elements.previewModalContent.classList.add('desktop-mode-active'); // NEW: Add desktop size class
+
                 elements.desktopViewBtn.classList.remove('bg-gray-300', 'text-gray-800');
                 elements.desktopViewBtn.classList.add('bg-blue-500', 'text-white');
                 elements.mobileViewBtn.classList.remove('bg-blue-500', 'text-white');
