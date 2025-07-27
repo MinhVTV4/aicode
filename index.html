@@ -305,62 +305,64 @@
         let currentAppName = null;
         let currentVersionId = null; 
         let userId = null;
-        let allApps = [];
+        let allApps = []; // Cache all apps for filtering
         let chat = null; // **BIẾN MỚI: Lưu trữ phiên trò chuyện với AI**
+        let currentVersionFiles = new Map(); // Store files for the currently selected version to avoid re-fetching
 
-        const applicationsList = document.getElementById('applicationsList');
-        const versionsList = document.getElementById('versionsList');
-        const currentAppNameSpan = document.getElementById('currentAppName');
-        const saveVersionBtn = document.getElementById('saveVersionBtn');
-        const addNewAppBtn = document.getElementById('addNewAppBtn');
-        const addNewAppModal = document.getElementById('addNewAppModal');
-        const newAppNameInput = document.getElementById('newAppNameInput');
-        const confirmNewAppBtn = document.getElementById('confirmNewAppBtn');
-        const cancelNewAppBtn = document.getElementById('cancelNewAppBtn');
-        const messageBox = document.getElementById('messageBox');
-        const messageContent = document.getElementById('messageContent');
-        const authSection = document.getElementById('authSection');
-        const mainAppContent = document.getElementById('mainAppContent');
-        const emailInput = document.getElementById('emailInput');
-        const passwordInput = document.getElementById('passwordInput');
-        const loginBtn = document.getElementById('loginBtn');
-        const registerBtn = document.getElementById('registerBtn');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const userEmailDisplay = document.getElementById('userEmailDisplay');
-        const authErrorMsg = document.getElementById('authErrorMsg');
-        const versionFilesList = document.getElementById('versionFilesList');
-        const searchInput = document.getElementById('searchInput'); 
-        const fileNameInput = document.getElementById('fileNameInput');
-        const versionNotesInput = document.getElementById('versionNotesInput');
-        
-        // THAM CHIẾU DOM MỚI CHO TRÌNH SOẠN THẢO HIGHLIGHT
-        const editorContainer = document.getElementById('editorContainer');
-        const editableCodeContent = document.getElementById('editableCodeContent'); // Đây là editor chính bây giờ
-        const editorPlaceholder = document.getElementById('editorPlaceholder');
-        const mainCodeEditor = editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
+        // DOM References
+        const elements = {
+            // Auth
+            authSection: document.getElementById('authSection'),
+            mainAppContent: document.getElementById('mainAppContent'),
+            emailInput: document.getElementById('emailInput'),
+            passwordInput: document.getElementById('passwordInput'),
+            loginBtn: document.getElementById('loginBtn'),
+            registerBtn: document.getElementById('registerBtn'),
+            logoutBtn: document.getElementById('logoutBtn'),
+            userEmailDisplay: document.getElementById('userEmailDisplay'),
+            authErrorMsg: document.getElementById('authErrorMsg'),
+            // App & Version Lists
+            applicationsList: document.getElementById('applicationsList'),
+            versionsList: document.getElementById('versionsList'),
+            currentAppNameSpan: document.getElementById('currentAppName'),
+            searchInput: document.getElementById('searchInput'),
+            // AI Canvas & Editor
+            versionFilesList: document.getElementById('versionFilesList'),
+            fileNameInput: document.getElementById('fileNameInput'),
+            versionNotesInput: document.getElementById('versionNotesInput'),
+            editorContainer: document.getElementById('editorContainer'),
+            editableCodeContent: document.getElementById('editableCodeContent'),
+            editorPlaceholder: document.getElementById('editorPlaceholder'),
+            aiPromptInput: document.getElementById('aiPromptInput'),
+            sendToAIButton: document.getElementById('sendToAIButton'),
+            aiButtonText: document.getElementById('aiButtonText'),
+            aiButtonSpinner: document.getElementById('aiButtonSpinner'),
+            aiExplanationBox: document.getElementById('aiExplanationBox'),
+            aiPromptSuggestionsContainer: document.getElementById('aiPromptSuggestions'),
+            // Actions
+            saveVersionBtn: document.getElementById('saveVersionBtn'),
+            copyBtn: document.getElementById('copyBtn'),
+            previewBtn: document.getElementById('previewBtn'),
+            softDeleteVersionBtn: document.getElementById('softDeleteVersionBtn'),
+            // Modals & Messages
+            messageBox: document.getElementById('messageBox'),
+            messageContent: document.getElementById('messageContent'),
+            addNewAppBtn: document.getElementById('addNewAppBtn'),
+            addNewAppModal: document.getElementById('addNewAppModal'),
+            newAppNameInput: document.getElementById('newAppNameInput'),
+            confirmNewAppBtn: document.getElementById('confirmNewAppBtn'),
+            cancelNewAppBtn: document.getElementById('cancelNewAppBtn'),
+            previewModal: document.getElementById('previewModal'),
+            closePreviewBtn: document.getElementById('closePreviewBtn'),
+            previewFrame: document.getElementById('previewFrame'),
+            showDeletedVersionsBtn: document.getElementById('showDeletedVersionsBtn'),
+            deletedVersionsModal: document.getElementById('deletedVersionsModal'),
+            deletedVersionsList: document.getElementById('deletedVersionsList'),
+            closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
+        };
 
-        const aiPromptInput = document.getElementById('aiPromptInput');
-        const sendToAIButton = document.getElementById('sendToAIButton');
-        const aiButtonText = document.getElementById('aiButtonText');
-        const aiButtonSpinner = document.getElementById('aiButtonSpinner');
-        
-        // THAM CHIẾU DOM CHO TÍNH NĂNG MỚI
-        const previewBtn = document.getElementById('previewBtn');
-        const copyBtn = document.getElementById('copyBtn');
-        const previewModal = document.getElementById('previewModal');
-        const closePreviewBtn = document.getElementById('closePreviewBtn');
-        const previewFrame = document.getElementById('previewFrame');
-        const aiExplanationBox = document.getElementById('aiExplanationBox');
-        
-        // THAM CHIẾU DOM CHO TÍNH NĂNG THÙNG RÁC
-        const softDeleteVersionBtn = document.getElementById('softDeleteVersionBtn'); // Nút xóa mềm
-        const showDeletedVersionsBtn = document.getElementById('showDeletedVersionsBtn'); // Nút xem thùng rác
-        const deletedVersionsModal = document.getElementById('deletedVersionsModal');
-        const deletedVersionsList = document.getElementById('deletedVersionsList');
-        const closeDeletedVersionsModalBtn = document.getElementById('closeDeletedVersionsModalBtn');
+        const mainCodeEditor = elements.editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
 
-        // NEW: Tham chiếu DOM và dữ liệu cho gợi ý câu lệnh AI
-        const aiPromptSuggestionsContainer = document.getElementById('aiPromptSuggestions');
         const aiPromptSuggestions = [
             "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:", // CÂU LỆNH MỚI
             "Thêm CSS để căn giữa nội dung trang và đặt màu nền là màu xanh nhạt (#e0f7fa).",
@@ -370,136 +372,129 @@
         ];
 
         // --- highlight.js script ---
-        // highlight.js được tải qua CDN, hàm hljs sẽ có sẵn
-        // Khởi tạo highlight.js trên editor
         function applyHighlighting() {
-            if (typeof hljs !== 'undefined') {
-                // Xóa tất cả các lớp ngôn ngữ cũ để tránh xung đột
-                mainCodeEditor.className = mainCodeEditor.className.split(' ').filter(cls => !cls.startsWith('language-')).join(' ');
+            if (typeof hljs === 'undefined') return;
 
-                const filename = fileNameInput.value.trim();
-                let langClass = '';
+            // Xóa tất cả các lớp ngôn ngữ cũ để tránh xung đột
+            mainCodeEditor.className = mainCodeEditor.className.split(' ')
+                                     .filter(cls => !cls.startsWith('language-'))
+                                     .join(' ');
 
-                // Gán lớp ngôn ngữ dựa trên phần mở rộng của tên tệp
-                if (filename.endsWith('.html') || filename.endsWith('.htm')) {
-                    langClass = 'language-xml'; // highlight.js sử dụng 'xml' cho HTML
-                } else if (filename.endsWith('.css')) {
-                    langClass = 'language-css';
-                } else if (filename.endsWith('.js') || filename.endsWith('.json')) {
-                    langClass = 'language-javascript'; // hoặc 'json'
-                } else {
-                    // Mặc định là HTML (xml) hoặc văn bản thuần nếu không có phần mở rộng cụ thể
-                    // Thường thì AI sẽ trả về hỗn hợp HTML/JS/CSS, nên 'xml' là một lựa chọn chung tốt.
-                    langClass = 'language-xml'; 
-                }
-                
-                if (langClass) {
-                    mainCodeEditor.classList.add(langClass);
-                }
+            const filename = elements.fileNameInput.value.trim();
+            let langClass = '';
 
-                // hljs.highlightElement chỉ cần element đã có text content
-                // và có class ngôn ngữ nếu muốn chỉ định rõ, hoặc để highlight.js tự động nhận diện
-                hljs.highlightElement(mainCodeEditor); 
+            // Gán lớp ngôn ngữ dựa trên phần mở rộng của tên tệp
+            if (filename.endsWith('.html') || filename.endsWith('.htm')) {
+                langClass = 'language-xml'; // highlight.js sử dụng 'xml' cho HTML
+            } else if (filename.endsWith('.css')) {
+                langClass = 'language-css';
+            } else if (filename.endsWith('.js') || filename.endsWith('.json')) {
+                langClass = 'language-javascript'; // hoặc 'json'
+            } else {
+                // Mặc định là HTML (xml) hoặc văn bản thuần nếu không có phần mở rộng cụ thể
+                // Thường thì AI sẽ trả về hỗn hợp HTML/JS/CSS, nên 'xml' là một lựa chọn chung tốt.
+                langClass = 'language-xml'; 
             }
+            
+            if (langClass) {
+                mainCodeEditor.classList.add(langClass);
+            }
+
+            hljs.highlightElement(mainCodeEditor); 
         }
 
         // --- Hàm tiện ích ---
         function showMessage(message, duration = 3000) {
-            messageContent.textContent = message;
-            messageBox.classList.remove('hidden', 'opacity-0');
-            messageBox.classList.add('opacity-100');
+            elements.messageContent.textContent = message;
+            elements.messageBox.classList.remove('hidden', 'opacity-0');
+            elements.messageBox.classList.add('opacity-100');
             setTimeout(() => {
-                messageBox.classList.remove('opacity-100');
-                messageBox.classList.add('opacity-0');
-                setTimeout(() => messageBox.classList.add('hidden'), 300);
+                elements.messageBox.classList.remove('opacity-100');
+                elements.messageBox.classList.add('opacity-0');
+                setTimeout(() => elements.messageBox.classList.add('hidden'), 300);
             }, duration);
         }
 
         function showAuthError(message) {
-            authErrorMsg.textContent = message;
+            elements.authErrorMsg.textContent = message;
         }
 
         // --- Logic Placeholder cho trình soạn thảo ---
         function toggleEditorPlaceholder() {
             if (mainCodeEditor.textContent.trim() === '') {
-                editorPlaceholder.style.display = 'block';
+                elements.editorPlaceholder.style.display = 'block';
             } else {
-                editorPlaceholder.style.display = 'none';
+                elements.editorPlaceholder.style.display = 'none';
             }
         }
 
         // NEW: Hàm render gợi ý câu lệnh AI
         function renderAiPromptSuggestions() {
-            aiPromptSuggestionsContainer.innerHTML = ''; // Xóa bất kỳ gợi ý nào cũ
+            elements.aiPromptSuggestionsContainer.innerHTML = '';
+            const fragment = document.createDocumentFragment();
             aiPromptSuggestions.forEach(prompt => {
                 const button = document.createElement('button');
                 button.textContent = prompt;
                 button.className = 'bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm py-1 px-3 rounded-md transition duration-200 whitespace-nowrap overflow-hidden text-ellipsis';
-                button.title = prompt; // Tooltip đầy đủ
-                button.addEventListener('click', () => {
-                    aiPromptInput.value = prompt; // Đặt giá trị cho textarea
-                    aiPromptInput.focus(); // Tập trung vào textarea
-                });
-                aiPromptSuggestionsContainer.appendChild(button);
+                button.title = prompt;
+                button.dataset.prompt = prompt; // Use dataset for click handler
+                fragment.appendChild(button);
             });
+            elements.aiPromptSuggestionsContainer.appendChild(fragment);
         }
 
         // --- Xác thực Firebase ---
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 userId = user.uid;
-                userEmailDisplay.textContent = user.email || "Anonymous";
-                userEmailDisplay.classList.remove('hidden');
-                logoutBtn.classList.remove('hidden');
-                authSection.classList.add('hidden');
-                mainAppContent.classList.remove('hidden');
-                mainAppContent.classList.add('grid');
+                elements.userEmailDisplay.textContent = user.email || "Anonymous";
+                elements.userEmailDisplay.classList.remove('hidden');
+                elements.logoutBtn.classList.remove('hidden');
+                elements.authSection.classList.add('hidden');
+                elements.mainAppContent.classList.remove('hidden');
+                elements.mainAppContent.classList.add('grid');
                 loadApplications();
-                toggleEditorPlaceholder(); // Initial check for editor placeholder
-                renderAiPromptSuggestions(); // NEW: Render gợi ý khi người dùng đăng nhập
+                toggleEditorPlaceholder();
+                renderAiPromptSuggestions();
             } else {
                 userId = null;
-                userEmailDisplay.classList.add('hidden');
-                logoutBtn.classList.add('hidden');
-                authSection.classList.remove('hidden');
-                mainAppContent.classList.add('hidden');
-                mainAppContent.classList.remove('grid');
+                elements.userEmailDisplay.classList.add('hidden');
+                elements.logoutBtn.classList.add('hidden');
+                elements.authSection.classList.remove('hidden');
+                elements.mainAppContent.classList.add('hidden');
+                elements.mainAppContent.classList.remove('grid');
             }
         });
 
         // --- Các hàm xác thực ---
-        const handleRegister = async () => {
-            const email = emailInput.value.trim();
-            const password = passwordInput.value.trim();
-            if (!email || !password) return showAuthError("Vui lòng nhập email và mật khẩu.");
+        const handleAuth = async (isRegister) => {
+            const email = elements.emailInput.value.trim();
+            const password = elements.passwordInput.value.trim();
+            if (!email || !password) {
+                return showAuthError("Vui lòng nhập email và mật khẩu.");
+            }
             try {
-                await createUserWithEmailAndPassword(auth, email, password);
-                showMessage("Đăng ký thành công!");
-                authErrorMsg.textContent = '';
+                if (isRegister) {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                    showMessage("Đăng ký thành công!");
+                } else {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    showMessage("Đăng nhập thành công!");
+                }
+                showAuthError(''); // Clear error message on success
             } catch (error) {
                 showAuthError(error.message);
-            }
-        };
-
-        const handleLogin = async () => {
-            const email = emailInput.value.trim();
-            const password = passwordInput.value.trim();
-            if (!email || !password) return showAuthError("Vui lòng nhập email và mật khẩu.");
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                showMessage("Đăng nhập thành công!");
-                authErrorMsg.textContent = '';
-            } catch (error) {
-                showAuthError("Email hoặc mật khẩu không đúng.");
             }
         };
 
         const handleLogout = () => signOut(auth).then(() => showMessage("Đã đăng xuất."));
 
         // --- Logic Firestore ---
-        const getApplicationsCollectionRef = () => collection(db, `users/${userId}/applications`);
-        const getVersionsCollectionRef = (appId) => collection(db, `users/${userId}/applications/${appId}/versions`);
-        const getFilesCollectionRef = (appId, versionId) => collection(db, `users/${userId}/applications/${appId}/versions/${versionId}/files`);
+        const getCollections = {
+            applications: () => collection(db, `users/${userId}/applications`),
+            versions: (appId) => collection(db, `users/${userId}/applications/${appId}/versions`),
+            files: (appId, versionId) => collection(db, `users/${userId}/applications/${appId}/versions/${versionId}/files`)
+        };
 
         const getFilesForVersion = async (appId, versionId) => {
             const files = new Map();
@@ -510,7 +505,7 @@
                 if (!versionSnap.exists()) break;
                 const versionData = versionSnap.data();
                 
-                const filesQuery = query(getFilesCollectionRef(appId, currentId));
+                const filesQuery = query(getCollections.files(appId, currentId));
                 const filesSnapshot = await getDocs(filesQuery);
                 filesSnapshot.forEach(fileDoc => {
                     const fileData = fileDoc.data();
@@ -526,25 +521,27 @@
 
         // --- Các hàm render giao diện ---
         const renderApplications = (appsToRender) => {
-            applicationsList.innerHTML = '';
+            elements.applicationsList.innerHTML = '';
             if (appsToRender.length === 0) {
-                applicationsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có ứng dụng nào.</div>';
+                elements.applicationsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có ứng dụng nào.</div>';
                 return;
             }
+            const fragment = document.createDocumentFragment();
             appsToRender.forEach((appData, index) => {
                 const appItem = document.createElement('div');
-                appItem.id = `app-${appData.id}`;
                 appItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm flex justify-between items-center';
                 if (appData.id === currentAppId) appItem.classList.add('selected');
                 appItem.innerHTML = `<span class="font-medium text-gray-700">${index + 1}. ${appData.name}</span>`;
-                appItem.onclick = () => selectApplication(appData.id, appData.name);
-                applicationsList.appendChild(appItem);
+                appItem.dataset.appId = appData.id;
+                appItem.dataset.appName = appData.name;
+                fragment.appendChild(appItem);
             });
+            elements.applicationsList.appendChild(fragment);
         };
 
         const loadApplications = () => {
             if (!userId) return;
-            const q = query(getApplicationsCollectionRef(), orderBy('createdAt', 'desc'));
+            const q = query(getCollections.applications(), orderBy('createdAt', 'desc'));
             onSnapshot(q, (snapshot) => {
                 allApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderApplications(allApps);
@@ -555,35 +552,37 @@
             currentAppId = appId;
             currentAppName = appName;
             currentVersionId = null;
-            chat = null; // Reset phiên chat khi chọn ứng dụng mới
-            currentAppNameSpan.textContent = appName;
+            chat = null;
+            currentVersionFiles.clear(); // Clear cached files
+
+            elements.currentAppNameSpan.textContent = appName;
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
-            document.getElementById(`app-${appId}`)?.classList.add('selected');
-            loadVersions(appId); // Tải các phiên bản không bị xóa
-            mainCodeEditor.textContent = ''; // Cập nhật textContent thay vì value
-            applyHighlighting(); // Áp dụng highlight sau khi reset
-            toggleEditorPlaceholder(); // Cập nhật placeholder
-            fileNameInput.value = '';
-            versionNotesInput.value = '';
-            versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
-            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
-            aiPromptInput.value = ''; // Reset AI prompt input
+            document.querySelector(`#applicationsList [data-app-id="${appId}"]`)?.classList.add('selected');
+
+            loadVersions(appId);
+            mainCodeEditor.textContent = '';
+            applyHighlighting();
+            toggleEditorPlaceholder();
+            elements.fileNameInput.value = '';
+            elements.versionNotesInput.value = '';
+            elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
+            elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+            elements.aiPromptInput.value = '';
         };
 
         const loadVersions = (appId) => {
             if (!userId || !appId) return;
-            // Chỉ tải các phiên bản CHƯA bị xóa
-            const q = query(getVersionsCollectionRef(appId), where('deleted', '!=', true), orderBy('timestamp', 'desc'));
+            const q = query(getCollections.versions(appId), where('deleted', '!=', true), orderBy('timestamp', 'desc'));
             onSnapshot(q, (snapshot) => {
-                versionsList.innerHTML = '';
+                elements.versionsList.innerHTML = '';
                 if (snapshot.empty) {
-                    versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có phiên bản nào.</div>';
+                    elements.versionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Chưa có phiên bản nào.</div>';
                     return;
                 }
+                const fragment = document.createDocumentFragment();
                 snapshot.forEach(doc => {
                     const version = doc.data();
                     const versionItem = document.createElement('div');
-                    versionItem.id = `version-${doc.id}`;
                     versionItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm';
                     if (doc.id === currentVersionId) versionItem.classList.add('selected');
                     const date = new Date(version.timestamp).toLocaleString();
@@ -591,47 +590,57 @@
                         <p class="font-medium text-gray-700">Phiên bản: ${version.versionIndex || 'N/A'}</p>
                         <p class="text-sm text-gray-500">${version.notes || 'Không có ghi chú'}</p>
                         <p class="text-xs text-gray-400">${date}</p>`;
-                    versionItem.onclick = () => selectVersion(appId, doc.id);
-                    versionsList.appendChild(versionItem);
+                    versionItem.dataset.versionId = doc.id;
+                    fragment.appendChild(versionItem);
                 });
+                elements.versionsList.appendChild(fragment);
             });
         };
 
         const selectVersion = async (appId, versionId) => {
             currentVersionId = versionId;
-            chat = null; // Reset phiên chat khi chọn phiên bản mới
+            chat = null; // Reset chat session
+            elements.aiPromptInput.value = ''; // Reset AI prompt input
+
             document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
-            document.getElementById(`version-${versionId}`)?.classList.add('selected');
-            versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
-            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
-            aiPromptInput.value = ''; // Reset AI prompt input
+            document.querySelector(`#versionsList [data-version-id="${versionId}"]`)?.classList.add('selected');
+
+            elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
+            elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
 
             try {
-                const filesMap = await getFilesForVersion(appId, versionId);
-                versionFilesList.innerHTML = '';
-                if (filesMap.size > 0) {
-                    const sortedFiles = Array.from(filesMap.values()).sort((a, b) => a.filename.localeCompare(b.filename));
+                currentVersionFiles = await getFilesForVersion(appId, versionId);
+                elements.versionFilesList.innerHTML = '';
+                if (currentVersionFiles.size > 0) {
+                    const sortedFiles = Array.from(currentVersionFiles.values()).sort((a, b) => a.filename.localeCompare(b.filename));
+                    const fragment = document.createDocumentFragment();
                     sortedFiles.forEach(fileData => {
                         const fileItem = document.createElement('div');
                         fileItem.className = 'list-item bg-gray-100 hover:bg-blue-100 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm';
                         fileItem.textContent = fileData.filename;
-                        fileItem.onclick = () => {
-                            fileNameInput.value = fileData.filename; // Cập nhật tên tệp
-                            mainCodeEditor.textContent = fileData.content; // Cập nhật textContent
-                            applyHighlighting(); // Áp dụng highlight sau khi tải
-                            toggleEditorPlaceholder(); // Cập nhật placeholder
-                            showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
-                            chat = null; // Reset phiên chat khi tải tệp mới
-                            aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
-                        };
-                        versionFilesList.appendChild(fileItem);
+                        fileItem.dataset.filename = fileData.filename; // Store filename for click delegation
+                        fragment.appendChild(fileItem);
                     });
+                    elements.versionFilesList.appendChild(fragment);
                 } else {
-                    versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Không tìm thấy tệp nào.</div>';
+                    elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Không tìm thấy tệp nào.</div>';
                 }
             } catch (error) {
                 console.error("Error loading files for version:", error);
-                versionFilesList.innerHTML = '<div class="text-red-500 text-center py-2">Lỗi khi tải tệp.</div>';
+                elements.versionFilesList.innerHTML = '<div class="text-red-500 text-center py-2">Lỗi khi tải tệp.</div>';
+            }
+        };
+
+        const loadFileIntoEditor = (filename) => {
+            const fileData = currentVersionFiles.get(filename);
+            if (fileData) {
+                elements.fileNameInput.value = fileData.filename;
+                mainCodeEditor.textContent = fileData.content;
+                applyHighlighting();
+                toggleEditorPlaceholder();
+                showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
+                chat = null;
+                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
             }
         };
 
@@ -640,19 +649,18 @@
             if (!aiModel) {
                 return showMessage("Mô hình AI chưa sẵn sàng.", 3000);
             }
-            const userPrompt = aiPromptInput.value.trim();
+            const userPrompt = elements.aiPromptInput.value.trim();
             if (!userPrompt) return showMessage("Vui lòng nhập yêu cầu cho AI.");
 
-            aiButtonText.textContent = 'Đang xử lý...';
-            aiButtonSpinner.classList.remove('hidden');
-            sendToAIButton.disabled = true;
+            elements.aiButtonText.textContent = 'Đang xử lý...';
+            elements.aiButtonSpinner.classList.remove('hidden');
+            elements.sendToAIButton.disabled = true;
 
             try {
-                // **CẬP NHẬT LOGIC: Tách giải thích và code**
                 const instruction = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy trả lời theo định dạng sau: Đầu tiên, đưa ra lời giải thích ngắn gọn. Sau đó, thêm một dòng chỉ chứa dấu phân cách '---CODE---'. Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ mà không có bất kỳ định dạng markdown nào khác.`;
 
                 if (!chat) {
-                    const currentCode = mainCodeEditor.textContent; // Lấy content từ editor mới
+                    const currentCode = mainCodeEditor.textContent;
                     const history = [
                         {
                             role: "user",
@@ -667,8 +675,7 @@
                 }
 
                 const result = await chat.sendMessage(userPrompt);
-                const response = result.response;
-                const fullResponseText = response.text();
+                const fullResponseText = result.response.text();
 
                 const separator = '---CODE---';
                 let explanation = "AI không cung cấp giải thích cho lần này.";
@@ -680,12 +687,11 @@
                     code = parts.slice(1).join(separator).trim();
                 }
                 
-                // Cập nhật giao diện
-                aiExplanationBox.innerHTML = explanation.replace(/\n/g, '<br>');
-                mainCodeEditor.textContent = code; // Cập nhật textContent của editor
-                applyHighlighting(); // Áp dụng highlight sau khi AI update
-                toggleEditorPlaceholder(); // Cập nhật placeholder
-                aiPromptInput.value = '';
+                elements.aiExplanationBox.innerHTML = explanation.replace(/\n/g, '<br>');
+                mainCodeEditor.textContent = code;
+                applyHighlighting();
+                toggleEditorPlaceholder();
+                elements.aiPromptInput.value = '';
                 showMessage("AI đã cập nhật mã và cung cấp giải thích.");
 
             } catch (error) {
@@ -693,46 +699,45 @@
                 showMessage(`Lỗi khi gọi AI: ${error.message}`, 5000);
                 chat = null;
             } finally {
-                aiButtonText.textContent = 'Gửi tới AI';
-                aiButtonSpinner.classList.add('hidden');
-                sendToAIButton.disabled = false;
+                elements.aiButtonText.textContent = 'Gửi tới AI';
+                elements.aiButtonSpinner.classList.add('hidden');
+                elements.sendToAIButton.disabled = false;
             }
         };
 
         // --- Các hàm hành động ---
         const saveVersion = async () => {
             if (!userId || !currentAppId) return showMessage('Vui lòng chọn một ứng dụng.');
-            const filename = fileNameInput.value.trim();
-            const content = mainCodeEditor.textContent; // Lấy nội dung từ textContent
+            const filename = elements.fileNameInput.value.trim();
+            const content = mainCodeEditor.textContent;
             if (!filename || !content) return showMessage(`Tên tệp và nội dung không được để trống.`);
 
             try {
-                // Đảm bảo phiên bản mới không bị đánh dấu là đã xóa ngay từ đầu
-                const versionsQuery = query(getVersionsCollectionRef(currentAppId), where('deleted', '!=', true));
+                const versionsQuery = query(getCollections.versions(currentAppId), where('deleted', '!=', true));
                 const versionsSnapshot = await getDocs(versionsQuery);
-                const newVersionIndex = versionsSnapshot.size + 1; // Index chỉ đếm các phiên bản đang hoạt động
+                const newVersionIndex = versionsSnapshot.size + 1;
 
-                const newVersionRef = await addDoc(getVersionsCollectionRef(currentAppId), {
+                const newVersionRef = await addDoc(getCollections.versions(currentAppId), {
                     versionIndex: newVersionIndex,
-                    notes: versionNotesInput.value.trim() || 'Không có ghi chú',
+                    notes: elements.versionNotesInput.value.trim() || 'Không có ghi chú',
                     timestamp: Date.now(),
                     parentVersionId: currentVersionId,
-                    deleted: false // Mặc định là không bị xóa
+                    deleted: false
                 });
 
-                await addDoc(getFilesCollectionRef(currentAppId, newVersionRef.id), {
+                await addDoc(getCollections.files(currentAppId, newVersionRef.id), {
                     filename,
                     content
                 });
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
-                mainCodeEditor.textContent = ''; // Reset editor
+                mainCodeEditor.textContent = '';
                 applyHighlighting();
                 toggleEditorPlaceholder();
-                fileNameInput.value = '';
-                versionNotesInput.value = '';
-                aiPromptInput.value = '';
-                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>'; // Reset AI explanation
+                elements.fileNameInput.value = '';
+                elements.versionNotesInput.value = '';
+                elements.aiPromptInput.value = '';
+                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
             } catch (error) {
                 console.error("Error saving version:", error);
                 showMessage('Lưu phiên bản thất bại.', 5000);
@@ -741,10 +746,10 @@
 
         const addNewApplication = async () => {
             if (!userId) return;
-            const appName = newAppNameInput.value.trim();
+            const appName = elements.newAppNameInput.value.trim();
             if (!appName) return showMessage('Tên ứng dụng không được để trống.');
             try {
-                await addDoc(getApplicationsCollectionRef(), { 
+                await addDoc(getCollections.applications(), { 
                     name: appName, 
                     createdAt: Date.now()
                 });
@@ -759,33 +764,32 @@
         
         const showAddNewAppModal = () => {
             if (!userId) return showMessage('Vui lòng đăng nhập để thêm ứng dụng.');
-            newAppNameInput.value = '';
-            addNewAppModal.classList.remove('hidden');
+            elements.newAppNameInput.value = '';
+            elements.addNewAppModal.classList.remove('hidden');
         };
 
-        const hideAddNewAppModal = () => addNewAppModal.classList.add('hidden');
+        const hideAddNewAppModal = () => elements.addNewAppModal.classList.add('hidden');
 
         // --- LOGIC CHO CÁC TÍNH NĂNG MỚI ---
         const showPreview = () => {
-            const codeToPreview = mainCodeEditor.textContent; // Lấy nội dung từ textContent
+            const codeToPreview = mainCodeEditor.textContent;
             if (!codeToPreview) {
                 return showMessage("Không có mã trong trình soạn thảo để xem trước.", 3000);
             }
-            previewFrame.srcdoc = codeToPreview;
-            previewModal.classList.remove('hidden');
+            elements.previewFrame.srcdoc = codeToPreview;
+            elements.previewModal.classList.remove('hidden');
         };
 
         const closePreview = () => {
-            previewModal.classList.add('hidden');
-            previewFrame.srcdoc = '';
+            elements.previewModal.classList.add('hidden');
+            elements.previewFrame.srcdoc = '';
         };
 
         const copyCode = () => {
-            const codeToCopy = mainCodeEditor.textContent; // Lấy nội dung từ textContent
+            const codeToCopy = mainCodeEditor.textContent;
             if (!codeToCopy) {
                 return showMessage("Không có mã trong trình soạn thảo để sao chép.", 3000);
             }
-            // Tạo một textarea tạm thời để sao chép nội dung
             const tempTextArea = document.createElement('textarea');
             tempTextArea.value = codeToCopy;
             document.body.appendChild(tempTextArea);
@@ -797,7 +801,6 @@
 
         // --- LOGIC CHO THÙNG RÁC ---
 
-        // Hàm xóa mềm phiên bản (chuyển vào thùng rác)
         const softDeleteVersion = async () => {
             if (!userId) return showMessage('Vui lòng đăng nhập.', 3000);
             if (!currentAppId) return showMessage('Vui lòng chọn một ứng dụng.', 3000);
@@ -815,50 +818,47 @@
                 });
                 
                 showMessage('Phiên bản đã được chuyển vào thùng rác!');
-                // Đặt lại trạng thái giao diện sau khi xóa mềm
                 currentVersionId = null;
-                mainCodeEditor.textContent = ''; // Reset editor
+                mainCodeEditor.textContent = '';
                 applyHighlighting();
                 toggleEditorPlaceholder();
-                fileNameInput.value = '';
-                versionNotesInput.value = '';
-                aiPromptInput.value = '';
-                aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
-                versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>';
-                chat = null; // Đặt lại phiên chat AI
+                elements.fileNameInput.value = '';
+                elements.versionNotesInput.value = '';
+                elements.aiPromptInput.value = '';
+                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>';
+                chat = null;
 
-                loadVersions(currentAppId); // Tải lại danh sách phiên bản đang hoạt động
+                loadVersions(currentAppId);
             } catch (error) {
                 console.error("Error soft deleting version:", error);
                 showMessage(`Lỗi khi chuyển phiên bản vào thùng rác: ${error.message}`, 5000);
             }
         };
 
-        // Hiển thị modal thùng rác
         const showDeletedVersionsModal = () => {
             if (!userId || !currentAppId) {
                 return showMessage('Vui lòng chọn một ứng dụng để xem các phiên bản đã xóa.', 3000);
             }
-            deletedVersionsModal.classList.remove('hidden');
+            elements.deletedVersionsModal.classList.remove('hidden');
             loadDeletedVersions();
         };
 
-        // Đóng modal thùng rác
         const closeDeletedVersionsModal = () => {
-            deletedVersionsModal.classList.add('hidden');
-            deletedVersionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Đang tải các phiên bản đã xóa...</div>'; // Reset nội dung
+            elements.deletedVersionsModal.classList.add('hidden');
+            elements.deletedVersionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Đang tải các phiên bản đã xóa...</div>';
         };
 
-        // Tải và hiển thị các phiên bản đã xóa
         const loadDeletedVersions = () => {
             if (!userId || !currentAppId) return;
-            const q = query(getVersionsCollectionRef(currentAppId), where('deleted', '==', true), orderBy('deletedAt', 'desc'));
+            const q = query(getCollections.versions(currentAppId), where('deleted', '==', true), orderBy('deletedAt', 'desc'));
             onSnapshot(q, (snapshot) => {
-                deletedVersionsList.innerHTML = '';
+                elements.deletedVersionsList.innerHTML = '';
                 if (snapshot.empty) {
-                    deletedVersionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Thùng rác trống.</div>';
+                    elements.deletedVersionsList.innerHTML = '<div class="text-gray-500 text-center py-4">Thùng rác trống.</div>';
                     return;
                 }
+                const fragment = document.createDocumentFragment();
                 snapshot.forEach(doc => {
                     const version = doc.data();
                     const versionItem = document.createElement('div');
@@ -876,26 +876,12 @@
                             <button class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 permanent-delete-btn" data-version-id="${doc.id}">Xóa vĩnh viễn</button>
                         </div>
                     `;
-                    deletedVersionsList.appendChild(versionItem);
+                    fragment.appendChild(versionItem);
                 });
-
-                // Gắn sự kiện cho các nút Khôi phục và Xóa vĩnh viễn
-                deletedVersionsList.querySelectorAll('.restore-btn').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const versionIdToRestore = e.target.dataset.versionId;
-                        restoreVersion(currentAppId, versionIdToRestore);
-                    });
-                });
-                deletedVersionsList.querySelectorAll('.permanent-delete-btn').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        const versionIdToDelete = e.target.dataset.versionId;
-                        permanentDeleteVersion(currentAppId, versionIdToDelete);
-                    });
-                });
+                elements.deletedVersionsList.appendChild(fragment);
             });
         };
 
-        // Hàm khôi phục phiên bản
         const restoreVersion = async (appId, versionId) => {
             if (!userId || !appId || !versionId) return;
 
@@ -907,18 +893,15 @@
                 const versionRef = doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`);
                 await updateDoc(versionRef, {
                     deleted: false,
-                    deletedAt: null // Xóa dấu thời gian đã xóa
+                    deletedAt: null
                 });
                 showMessage('Phiên bản đã được khôi phục thành công!');
-                loadVersions(appId); // Tải lại danh sách phiên bản hoạt động
-                loadDeletedVersions(); // Tải lại danh sách phiên bản đã xóa
             } catch (error) {
                 console.error("Error restoring version:", error);
                 showMessage(`Lỗi khi khôi phục phiên bản: ${error.message}`, 5000);
             }
         };
 
-        // Hàm xóa vĩnh viễn phiên bản và các tệp của nó
         const permanentDeleteVersion = async (appId, versionId) => {
             if (!userId || !appId || !versionId) return;
 
@@ -927,20 +910,16 @@
             }
 
             try {
-                // Xóa tất cả các tệp thuộc về phiên bản cụ thể này
-                const filesSnapshot = await getDocs(getFilesCollectionRef(appId, versionId));
+                const filesSnapshot = await getDocs(getCollections.files(appId, versionId));
                 const deleteFilePromises = [];
                 filesSnapshot.forEach((fileDoc) => {
                     deleteFilePromises.push(deleteDoc(fileDoc.ref));
                 });
                 await Promise.all(deleteFilePromises);
 
-                // Sau đó xóa tài liệu phiên bản chính
                 await deleteDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
                 
                 showMessage('Phiên bản và các tệp của nó đã được xóa vĩnh viễn!');
-                loadVersions(appId); // Tải lại danh sách phiên bản hoạt động
-                loadDeletedVersions(); // Tải lại danh sách phiên bản đã xóa
             } catch (error) {
                 console.error("Error permanently deleting version:", error);
                 showMessage(`Lỗi khi xóa vĩnh viễn phiên bản: ${error.message}`, 5000);
@@ -948,29 +927,70 @@
         };
 
 
-        // --- Gắn các sự kiện ---
-        saveVersionBtn.addEventListener('click', saveVersion);
-        addNewAppBtn.addEventListener('click', showAddNewAppModal);
-        confirmNewAppBtn.addEventListener('click', addNewApplication);
-        cancelNewAppBtn.addEventListener('click', hideAddNewAppModal);
-        loginBtn.addEventListener('click', handleLogin);
-        registerBtn.addEventListener('click', handleRegister);
-        logoutBtn.addEventListener('click', handleLogout);
-        sendToAIButton.addEventListener('click', callAI);
-        searchInput.addEventListener('input', (e) => {
+        // --- Gắn các sự kiện (sử dụng Event Delegation khi có thể) ---
+        elements.loginBtn.addEventListener('click', () => handleAuth(false));
+        elements.registerBtn.addEventListener('click', () => handleAuth(true));
+        elements.logoutBtn.addEventListener('click', handleLogout);
+
+        elements.addNewAppBtn.addEventListener('click', showAddNewAppModal);
+        elements.confirmNewAppBtn.addEventListener('click', addNewApplication);
+        elements.cancelNewAppBtn.addEventListener('click', hideAddNewAppModal);
+        elements.saveVersionBtn.addEventListener('click', saveVersion);
+        elements.sendToAIButton.addEventListener('click', callAI);
+        elements.copyBtn.addEventListener('click', copyCode);
+        elements.previewBtn.addEventListener('click', showPreview);
+        elements.closePreviewBtn.addEventListener('click', closePreview);
+        elements.softDeleteVersionBtn.addEventListener('click', softDeleteVersion);
+        elements.showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
+        elements.closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
+
+        elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
             const filteredApps = allApps.filter(app => app.name.toLowerCase().includes(searchTerm));
             renderApplications(filteredApps);
         });
 
-        previewBtn.addEventListener('click', showPreview);
-        closePreviewBtn.addEventListener('click', closePreview);
-        copyBtn.addEventListener('click', copyCode);
-        
-        // Gắn sự kiện cho các nút thùng rác mới
-        softDeleteVersionBtn.addEventListener('click', softDeleteVersion);
-        showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
-        closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
+        // Event delegation for applications list
+        elements.applicationsList.addEventListener('click', (e) => {
+            const appItem = e.target.closest('.list-item');
+            if (appItem && appItem.dataset.appId) {
+                selectApplication(appItem.dataset.appId, appItem.dataset.appName);
+            }
+        });
+
+        // Event delegation for versions list
+        elements.versionsList.addEventListener('click', (e) => {
+            const versionItem = e.target.closest('.list-item');
+            if (versionItem && versionItem.dataset.versionId && currentAppId) {
+                selectVersion(currentAppId, versionItem.dataset.versionId);
+            }
+        });
+
+        // Event delegation for version files list
+        elements.versionFilesList.addEventListener('click', (e) => {
+            const fileItem = e.target.closest('.list-item');
+            if (fileItem && fileItem.dataset.filename) {
+                loadFileIntoEditor(fileItem.dataset.filename);
+            }
+        });
+
+        // Event delegation for deleted versions modal buttons
+        elements.deletedVersionsList.addEventListener('click', (e) => {
+            if (e.target.classList.contains('restore-btn') && currentAppId) {
+                restoreVersion(currentAppId, e.target.dataset.versionId);
+            } else if (e.target.classList.contains('permanent-delete-btn') && currentAppId) {
+                permanentDeleteVersion(currentAppId, e.target.dataset.versionId);
+            }
+        });
+
+        // Event delegation for AI prompt suggestions
+        elements.aiPromptSuggestionsContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (button && button.dataset.prompt) {
+                elements.aiPromptInput.value = button.dataset.prompt;
+                elements.aiPromptInput.focus();
+            }
+        });
 
         // Gắn sự kiện cho trình soạn thảo mới
         mainCodeEditor.addEventListener('input', () => {
@@ -978,7 +998,7 @@
             toggleEditorPlaceholder();
         });
         mainCodeEditor.addEventListener('focus', () => {
-            editorPlaceholder.style.display = 'none';
+            elements.editorPlaceholder.style.display = 'none';
         });
         mainCodeEditor.addEventListener('blur', () => {
             toggleEditorPlaceholder();
@@ -987,28 +1007,26 @@
         // Xử lý phím Tab trong contenteditable
         mainCodeEditor.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
-                e.preventDefault(); // Ngăn hành vi tab mặc định (chuyển focus)
+                e.preventDefault();
                 const selection = window.getSelection();
                 const range = selection.getRangeAt(0);
                 
-                // Chèn ký tự tab
                 const tabNode = document.createTextNode('\t');
                 range.insertNode(tabNode);
                 
-                // Di chuyển con trỏ sau ký tự tab đã chèn
                 range.setStartAfter(tabNode);
                 range.setEndAfter(tabNode);
                 selection.removeAllRanges();
                 selection.addRange(range);
 
-                applyHighlighting(); // Áp dụng highlight lại sau khi chèn tab
+                applyHighlighting();
                 toggleEditorPlaceholder();
             }
         });
 
-        // Gọi hàm kiểm tra placeholder ban đầu
+        // Initial calls
         toggleEditorPlaceholder();
-        renderAiPromptSuggestions(); // NEW: Gọi hàm render gợi ý khi trang tải
+        renderAiPromptSuggestions();
     </script>
 </body>
 </html>
