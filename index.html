@@ -841,6 +841,7 @@
                 const selectedStyle = elements.mainStyleSelect.value;
                 let instruction = `Bạn là một trợ lý lập trình chuyên nghiệp. Hãy trả lời theo định dạng sau: Đầu tiên, đưa ra lời giải thích ngắn gọn. Sau đó, thêm một dòng chỉ chứa dấu phân cách '---CODE---'. Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ mà không có bất kỳ định dạng markdown nào khác.`;
 
+                // NEW: Thêm thông tin về phong cách nếu có được chọn
                 if (selectedStyle) {
                     instruction += ` Khi tạo mã, hãy cố gắng tuân thủ phong cách thiết kế "${selectedStyle}".`;
                 }
@@ -1234,8 +1235,8 @@
                             <p class="text-xs text-gray-400">Đã xóa vào: ${deletedAtDate}</p>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
-                            <button class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 restore-btn shadow-md">Khôi phục</button>
-                            <button class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 permanent-delete-btn shadow-md">Xóa vĩnh viễn</button>
+                            <button class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 restore-btn shadow-md" data-version-id="${doc.id}">Khôi phục</button>
+                            <button class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 permanent-delete-btn shadow-md" data-version-id="${doc.id}">Xóa vĩnh viễn</button>
                         </div>
                     `;
                     fragment.appendChild(versionItem);
@@ -1366,10 +1367,18 @@
 
         // Event delegation for deleted versions modal buttons
         elements.deletedVersionsList.addEventListener('click', (e) => {
-            if (e.target.classList.contains('restore-btn') && currentAppId) {
-                restoreVersion(currentAppId, e.target.dataset.versionId);
-            } else if (e.target.classList.contains('permanent-delete-btn') && currentAppId) {
-                permanentDeleteVersion(currentAppId, e.target.dataset.versionId);
+            const button = e.target.closest('button');
+            if (!button) return;
+
+            const versionItem = button.closest('div[class*="bg-gray-100"]');
+            if (!versionItem) return;
+
+            const versionId = versionItem.querySelector('[data-version-id]')?.dataset.versionId;
+            
+            if (button.classList.contains('restore-btn') && currentAppId && versionId) {
+                restoreVersion(currentAppId, versionId);
+            } else if (button.classList.contains('permanent-delete-btn') && currentAppId && versionId) {
+                permanentDeleteVersion(currentAppId, versionId);
             }
         });
 
