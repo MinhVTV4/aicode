@@ -15,44 +15,282 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     
     <style>
-        /* CSS tùy chỉnh để giao diện đẹp hơn */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* bg-gray-100 */
-            color: #374151; /* text-gray-700 */
-        }
-        /* Hiệu ứng khi di chuột vào nút */
-        button {
-            transition: all 0.3s ease;
-        }
-        button:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.08); /* Stronger shadow on hover */
-        }
-        button:active:not(:disabled) {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.06); /* Pressed effect */
+        /* Neumorphism Base Variables */
+        :root {
+            --neumo-bg: #E0E5EC; /* Light gray-blue background */
+            --neumo-light-shadow: #ffffff; /* White for highlight shadow */
+            --neumo-dark-shadow: #A7B0BE; /* Darker gray-blue for dark shadow */
+            --neumo-text: #374151; /* Existing gray-700 */
+            --neumo-primary: #3b82f6; /* Tailwind Blue-500 */
+            --neumo-primary-dark: #2563eb; /* Tailwind Blue-700 */
+            --neumo-primary-light: #60a5fa; /* Tailwind Blue-400 */
+            --neumo-success: #22c55e; /* Tailwind Green-500 */
+            --neumo-success-dark: #16a34a; /* Tailwind Green-600 */
+            --neumo-warning: #f59e0b; /* Tailwind Yellow-500 */
+            --neumo-warning-dark: #d97706; /* Tailwind Yellow-600 */
+            --neumo-danger: #ef4444; /* Tailwind Red-500 */
+            --neumo-danger-dark: #dc2626; /* Tailwind Red-600 */
+            --neumo-info: #14b8a6; /* Tailwind Teal-500 */
+            --neumo-info-dark: #0d9488; /* Tailwind Teal-600 */
+            --neumo-indigo: #4f46e5; /* Tailwind Indigo-600 */
+            --neumo-indigo-dark: #4338ca; /* Tailwind Indigo-700 */
         }
 
-        /* Kiểu cho các mục trong danh sách */
+        /* Base CSS for Neumorphism */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--neumo-bg);
+            color: var(--neumo-text);
+            transition: background-color 0.3s ease;
+        }
+
+        /* Neumorphism Card/Container Style */
+        .neumo-card {
+            background: var(--neumo-bg);
+            border-radius: 12px;
+            box-shadow: 9px 9px 18px var(--neumo-dark-shadow), -9px -9px 18px var(--neumo-light-shadow);
+            transition: all 0.3s ease-in-out;
+            border: none !important; /* Override any existing borders */
+        }
+        .neumo-card.header-shadow {
+            box-shadow: 0 4px 8px var(--neumo-dark-shadow); /* Shadow only at the bottom for header */
+            border-radius: 0; /* No border radius for header */
+        }
+
+        /* Neumorphism Button Styles */
+        button.neumo-btn {
+            background: var(--neumo-bg);
+            color: var(--neumo-text);
+            box-shadow: 6px 6px 12px var(--neumo-dark-shadow), -6px -6px 12px var(--neumo-light-shadow);
+            border-radius: 8px;
+            border: none;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none; /* Remove outline on focus */
+            display: flex; /* For spinner */
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        button.neumo-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 9px 9px 18px var(--neumo-dark-shadow), -9px -9px 18px var(--neumo-light-shadow);
+        }
+        button.neumo-btn:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: inset 4px 4px 8px var(--neumo-dark-shadow), inset -4px -4px 8px var(--neumo-light-shadow);
+        }
+        button.neumo-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: inset 2px 2px 5px var(--neumo-dark-shadow), inset -2px -2px 5px var(--neumo-light-shadow);
+        }
+
+        /* Specific Button Colors (override base Neumorphism button background/shadow) */
+        .neumo-btn-primary {
+            background-color: var(--neumo-primary);
+            color: white;
+            box-shadow: 6px 6px 12px rgba(59, 130, 246, 0.4), -6px -6px 12px rgba(59, 130, 246, 0.1);
+        }
+        .neumo-btn-primary:hover:not(:disabled) {
+            background-color: var(--neumo-primary-dark);
+            box-shadow: 9px 9px 18px rgba(59, 130, 246, 0.5), -9px -9px 18px rgba(59, 130, 246, 0.2);
+        }
+        .neumo-btn-primary:active:not(:disabled) {
+            box-shadow: inset 4px 4px 8px var(--neumo-primary-dark), inset -4px -4px 8px var(--neumo-primary-light);
+        }
+
+        .neumo-btn-success {
+            background-color: var(--neumo-success);
+            color: white;
+            box-shadow: 6px 6px 12px rgba(34, 197, 94, 0.4), -6px -6px 12px rgba(34, 197, 94, 0.1);
+        }
+        .neumo-btn-success:hover:not(:disabled) {
+            background-color: var(--neumo-success-dark);
+            box-shadow: 9px 9px 18px rgba(34, 197, 94, 0.5), -9px -9px 18px rgba(34, 197, 94, 0.2);
+        }
+        .neumo-btn-success:active:not(:disabled) {
+            box-shadow: inset 4px 4px 8px var(--neumo-success-dark), inset -4px -4px 8px var(--neumo-success);
+        }
+
+        .neumo-btn-warning {
+            background-color: var(--neumo-warning);
+            color: white;
+            box-shadow: 6px 6px 12px rgba(245, 158, 11, 0.4), -6px -6px 12px rgba(245, 158, 11, 0.1);
+        }
+        .neumo-btn-warning:hover:not(:disabled) {
+            background-color: var(--neumo-warning-dark);
+            box-shadow: 9px 9px 18px rgba(245, 158, 11, 0.5), -9px -9px 18px rgba(245, 158, 11, 0.2);
+        }
+        .neumo-btn-warning:active:not(:disabled) {
+            box-shadow: inset 4px 4px 8px var(--neumo-warning-dark), inset -4px -4px 8px var(--neumo-warning);
+        }
+
+        .neumo-btn-danger {
+            background-color: var(--neumo-danger);
+            color: white;
+            box-shadow: 6px 6px 12px rgba(239, 68, 68, 0.4), -6px -6px 12px rgba(239, 68, 68, 0.1);
+        }
+        .neumo-btn-danger:hover:not(:disabled) {
+            background-color: var(--neumo-danger-dark);
+            box-shadow: 9px 9px 18px rgba(239, 68, 68, 0.5), -9px -9px 18px rgba(239, 68, 68, 0.2);
+        }
+        .neumo-btn-danger:active:not(:disabled) {
+            box-shadow: inset 4px 4px 8px var(--neumo-danger-dark), inset -4px -4px 8px var(--neumo-danger);
+        }
+
+        .neumo-btn-info { /* For preview button */
+            background-color: var(--neumo-info);
+            color: white;
+            box-shadow: 6px 6px 12px rgba(20, 184, 166, 0.4), -6px -6px 12px rgba(20, 184, 166, 0.1);
+        }
+        .neumo-btn-info:hover:not(:disabled) {
+            background-color: var(--neumo-info-dark);
+            box-shadow: 9px 9px 18px rgba(20, 184, 166, 0.5), -9px -9px 18px rgba(20, 184, 166, 0.2);
+        }
+        .neumo-btn-info:active:not(:disabled) {
+            box-shadow: inset 4px 4px 8px var(--neumo-info-dark), inset -4px -4px 8px var(--neumo-info);
+        }
+
+        .neumo-btn-indigo { /* For send to AI button */
+            background-color: var(--neumo-indigo);
+            color: white;
+            box-shadow: 6px 6px 12px rgba(79, 70, 229, 0.4), -6px -6px 12px rgba(79, 70, 229, 0.1);
+        }
+        .neumo-btn-indigo:hover:not(:disabled) {
+            background-color: var(--neumo-indigo-dark);
+            box-shadow: 9px 9px 18px rgba(79, 70, 229, 0.5), -9px -9px 18px rgba(79, 70, 229, 0.2);
+        }
+        .neumo-btn-indigo:active:not(:disabled) {
+            box-shadow: inset 4px 4px 8px var(--neumo-indigo-dark), inset -4px -4px 8px var(--neumo-indigo);
+        }
+
+        .neumo-btn-secondary { /* For gray/cancel buttons */
+            background-color: var(--neumo-bg);
+            color: var(--neumo-text);
+            box-shadow: 4px 4px 8px var(--neumo-dark-shadow), -4px -4px 8px var(--neumo-light-shadow);
+        }
+        .neumo-btn-secondary:hover:not(:disabled) {
+            background-color: var(--neumo-bg);
+            box-shadow: 6px 6px 12px var(--neumo-dark-shadow), -6px -6px 12px var(--neumo-light-shadow);
+        }
+        .neumo-btn-secondary:active:not(:disabled) {
+            box-shadow: inset 2px 2px 5px var(--neumo-dark-shadow), inset -2px -2px 5px var(--neumo-light-shadow);
+        }
+        
+        .neumo-btn-small { /* For smaller buttons like edit/delete in lists */
+            padding: 4px 8px; /* py-1 px-2 */
+            font-size: 0.75rem; /* text-xs */
+        }
+        .neumo-btn-tiny { /* For even smaller buttons like in AI suggestions */
+            padding: 2px 6px; /* py-0.5 px-1.5 */
+            font-size: 0.75rem; /* text-xs */
+        }
+        /* Specific small button colors */
+        .neumo-btn-small.neumo-btn-warning { /* Edit button for app list */
+            box-shadow: 3px 3px 6px rgba(245, 158, 11, 0.3), -3px -3px 6px rgba(245, 158, 11, 0.1);
+        }
+        .neumo-btn-small.neumo-btn-warning:hover:not(:disabled) {
+            box-shadow: 4px 4px 8px rgba(245, 158, 11, 0.4), -4px -4px 8px rgba(245, 158, 11, 0.15);
+        }
+        .neumo-btn-small.neumo-btn-warning:active:not(:disabled) {
+            box-shadow: inset 2px 2px 4px var(--neumo-warning-dark), inset -2px -2px 4px var(--neumo-warning);
+        }
+        .neumo-btn-small.neumo-btn-danger { /* Delete button for app list */
+            box-shadow: 3px 3px 6px rgba(239, 68, 68, 0.3), -3px -3px 6px rgba(239, 68, 68, 0.1);
+        }
+        .neumo-btn-small.neumo-btn-danger:hover:not(:disabled) {
+            box-shadow: 4px 4px 8px rgba(239, 68, 68, 0.4), -4px -4px 8px rgba(239, 68, 68, 0.15);
+        }
+        .neumo-btn-small.neumo-btn-danger:active:not(:disabled) {
+            box-shadow: inset 2px 2px 4px var(--neumo-danger-dark), inset -2px -2px 4px var(--neumo-danger);
+        }
+        
+        /* Neumorphism Input/Textarea/Select Styles */
+        .neumo-input {
+            background: var(--neumo-bg);
+            border: none;
+            border-radius: 8px;
+            box-shadow: inset 4px 4px 8px var(--neumo-dark-shadow), inset -4px -4px 8px var(--neumo-light-shadow);
+            padding: 10px 14px;
+            outline: none;
+            color: var(--neumo-text);
+            transition: all 0.3s ease;
+            -webkit-appearance: none; /* For select consistency */
+            -moz-appearance: none;
+            appearance: none;
+        }
+        .neumo-input:focus {
+            box-shadow: inset 4px 4px 8px var(--neumo-dark-shadow), inset -4px -4px 8px var(--neumo-light-shadow), 0 0 0 3px rgba(59, 130, 246, 0.3); /* Soft blue focus ring */
+        }
+
+        /* Neumorphism List Item Styles */
         .list-item {
-            transition: all 0.2s ease;
-            border: 1px solid #e5e7eb; /* Add default border */
+            background: var(--neumo-bg);
+            border-radius: 8px;
+            box-shadow: 6px 6px 12px var(--neumo-dark-shadow), -6px -6px 12px var(--neumo-light-shadow);
+            transition: all 0.3s ease;
+            border: none !important; /* Remove default border */
+            padding: 12px;
+            cursor: pointer;
         }
         .list-item:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border-color: #bfdbfe; /* blue-200 */
+            transform: translateY(-2px);
+            box-shadow: 9px 9px 18px var(--neumo-dark-shadow), -9px -9px 18px var(--neumo-light-shadow);
         }
         .list-item.selected {
-             background-color: #dbeafe; /* blue-100 */
-             border-left: 4px solid #3b82f6; /* blue-500 */
-             border-color: #93c5fd; /* blue-300 for overall border */
+            background: var(--neumo-bg); /* Keep base background */
+            box-shadow: inset 4px 4px 8px var(--neumo-dark-shadow), inset -4px -4px 8px var(--neumo-light-shadow);
+            border-left: 4px solid var(--neumo-primary) !important; /* Keep the accent bar */
         }
-        /* Biểu tượng tải */
+
+        /* Editor Container (Code Editor) */
+        #editorContainer {
+            box-shadow: inset 4px 4px 8px var(--neumo-dark-shadow), inset -4px -4px 8px var(--neumo-light-shadow);
+            background: var(--neumo-bg); /* Match body bg */
+            border-radius: 8px;
+            min-height: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+        #editableCodeContent {
+            background: transparent; /* Use parent's background */
+            color: var(--neumo-text);
+            outline: none;
+            tab-size: 4;
+            min-height: 100%;
+            white-space: pre-wrap;
+            word-break: break-all;
+            z-index: 10;
+        }
+        #editorPlaceholder {
+            color: var(--neumo-dark-shadow); /* Softer placeholder color */
+            z-index: 5;
+        }
+
+        /* AI Explanation Box */
+        #aiExplanationBox {
+            background: var(--neumo-bg);
+            box-shadow: inset 2px 2px 5px var(--neumo-dark-shadow), inset -2px -2px 5px var(--neumo-light-shadow);
+            border: none;
+            border-left: 4px solid var(--neumo-primary); /* Keep accent color for distinction */
+            border-radius: 8px;
+            padding: 1rem; /* p-4 */
+            font-size: 0.875rem; /* text-sm */
+            color: var(--neumo-text);
+            line-height: 1.625; /* leading-relaxed */
+            overflow-y: auto;
+        }
+        #aiExplanationBox p {
+            color: var(--neumo-dark-shadow); /* Placeholder text color */
+        }
+
+
+        /* Spinner (Adjust for new button backgrounds) */
         .spinner {
             border: 3px solid rgba(255, 255, 255, 0.3);
-            border-left-color: #fff;
+            border-left-color: white; /* Keep white for contrast on colored buttons */
             border-radius: 50%;
             width: 20px;
             height: 20px;
@@ -61,63 +299,52 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        /* CSS cho Modal xem trước */
+
+        /* Modal specific adjustments */
+        #previewModalContent {
+            background: var(--neumo-bg);
+            border-radius: 12px;
+            box-shadow: 9px 9px 18px var(--neumo-dark-shadow), -9px -9px 18px var(--neumo-light-shadow);
+            transition: max-width 0.3s ease-in-out, width 0.3s ease-in-out;
+        }
         #previewModal iframe {
-            width: 100%; /* Giữ 100% so với container cha */
-            height: 80vh;
-            border: 1px solid #e5e7eb; /* gray-200 */
+            background: white; /* iframe background should remain white for web content */
+            border: 1px solid var(--neumo-dark-shadow); /* Soften border */
             border-radius: 0.5rem;
         }
 
         /* NEW: Styles for preview modes */
         #previewFrameContainer {
-            transition: max-width 0.3s ease-in-out; /* Hiệu ứng chuyển đổi mượt mà */
-            max-width: 100%; /* Mặc định là full width của modal */
-            width: 100%; /* Đảm bảo nó chiếm đủ không gian theo max-width */
+            transition: max-width 0.3s ease-in-out;
+            max-width: 100%;
+            width: 100%;
+            border-radius: 0.5rem;
+            overflow: hidden; /* Ensure iframe corners are respected */
         }
-
         #previewFrameContainer.mobile-view {
-            max-width: 375px; /* Chiều rộng điển hình cho thiết bị di động */
+            max-width: 375px;
+            /* Add shadow for mobile frame to make it look like a device */
+            box-shadow: 0 0 20px rgba(0,0,0,0.2), inset 0 0 10px rgba(0,0,0,0.1);
+        }
+        #previewFrameContainer.mobile-view #previewFrame {
+            border-radius: 0.5rem; /* Ensure iframe matches container */
         }
 
         /* NEW: Styles for bigger desktop modal content */
-        #previewModalContent {
-            transition: max-width 0.3s ease-in-out, width 0.3s ease-in-out; /* Add width transition */
-        }
-
         #previewModalContent.desktop-mode-active {
-            max-width: 90vw; /* Take 90% of viewport width for desktop view */
-            width: 90vw; /* Ensure it applies */
+            max-width: 90vw;
+            width: 90vw;
         }
 
-        /* Thêm style cho trình soạn thảo mới */
-        #editorContainer {
-            min-height: 200px; /* Đảm bảo chiều cao tối thiểu cho trình soạn thảo */
-        }
-        #editableCodeContent {
-            /* Đảm bảo nội dung có thể cuộn và trông giống textarea */
-            outline: none; /* Bỏ viền focus mặc định */
-            tab-size: 4; /* Kích thước tab */
-            min-height: 100%; /* Ensure contenteditable takes full height */
-            white-space: pre-wrap; /* Ensure wrapping within pre */
-            word-break: break-all; /* Break long words */
-        }
-        /* Adjusted placeholder z-index to be lower than content for better interaction */
-        #editorPlaceholder {
-            z-index: 5; /* Lower than editableCodeContent's z-index */
-        }
-        #editableCodeContent[contenteditable="true"] {
-            z-index: 10;
-        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
     <!-- Phần Header -->
-    <header class="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 shadow-lg flex justify-between items-center">
-        <h1 class="text-3xl font-bold">Version Control AI Canvas</h1>
+    <header class="neumo-card header-shadow text-white p-4 flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-800">Version Control AI Canvas</h1>
         <div id="authStatus" class="flex items-center space-x-4">
-            <span id="userEmailDisplay" class="text-lg font-medium hidden"></span>
-            <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 hidden">
+            <span id="userEmailDisplay" class="text-lg font-medium text-gray-700 hidden"></span>
+            <button id="logoutBtn" class="neumo-btn neumo-btn-danger py-2 px-4 rounded-lg shadow-md transition duration-300 hidden neumo-btn-small">
                 Đăng xuất
             </button>
         </div>
@@ -125,21 +352,21 @@
 
     <!-- Phần Đăng nhập / Đăng ký -->
     <div id="authSection" class="flex-grow flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+        <div class="neumo-card p-8 w-full max-w-md">
             <h2 class="text-3xl font-bold mb-6 text-center text-gray-800">Đăng nhập / Đăng ký</h2>
             <div class="mb-4">
                 <label for="emailInput" class="block text-gray-700 text-base font-bold mb-2">Email:</label>
-                <input type="email" id="emailInput" placeholder="your@example.com" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                <input type="email" id="emailInput" placeholder="your@example.com" class="neumo-input w-full py-2 px-3 text-gray-700 leading-tight">
             </div>
             <div class="mb-6">
                 <label for="passwordInput" class="block text-gray-700 text-base font-bold mb-2">Mật khẩu:</label>
-                <input type="password" id="passwordInput" placeholder="********" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                <input type="password" id="passwordInput" placeholder="********" class="neumo-input w-full py-2 px-3 text-gray-700 leading-tight">
             </div>
             <div class="flex flex-col sm:flex-row gap-4">
-                <button id="loginBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-5 rounded-lg shadow-md flex-grow">
+                <button id="loginBtn" class="neumo-btn neumo-btn-primary py-3 px-5 flex-grow">
                     Đăng nhập
                 </button>
-                <button id="registerBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg shadow-md flex-grow">
+                <button id="registerBtn" class="neumo-btn neumo-btn-success py-3 px-5 flex-grow">
                     Đăng ký
                 </button>
             </div>
@@ -151,13 +378,13 @@
     <main id="mainAppContent" class="flex-grow container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 hidden">
         
         <!-- Cột trái: Danh sách ứng dụng (15%) -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-100">
+        <section class="neumo-card p-6 col-span-1 lg:col-span-2 flex flex-col">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Applications</h2>
-            <button id="addNewAppBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
+            <button id="addNewAppBtn" class="neumo-btn neumo-btn-success py-3 px-5 mb-4 w-full">
                 Add New Application
             </button>
             <div class="my-4">
-                <input type="text" id="searchInput" placeholder="Tìm kiếm ứng dụng..." class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                <input type="text" id="searchInput" placeholder="Tìm kiếm ứng dụng..." class="neumo-input w-full py-2 px-3 text-gray-700 leading-tight">
             </div>
             <div id="applicationsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
                 <div class="text-gray-500 text-center py-4">Loading applications...</div>
@@ -165,9 +392,9 @@
         </section>
 
         <!-- Cột giữa: Danh sách phiên bản (15%) -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-100">
+        <section class="neumo-card p-6 col-span-1 lg:col-span-2 flex flex-col">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
-            <button id="showDeletedVersionsBtn" class="bg-red-400 hover:bg-red-500 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
+            <button id="showDeletedVersionsBtn" class="neumo-btn neumo-btn-danger py-3 px-5 mb-4 w-full">
                 Xem phiên bản đã xóa
             </button>
             <div id="versionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
@@ -176,59 +403,59 @@
         </section>
 
         <!-- Cột phải: AI Canvas (70%) - Refactored for better visuals -->
-        <section class="bg-white p-8 rounded-xl shadow-2xl col-span-1 lg:col-span-8 flex flex-col border border-gray-100">
+        <section class="neumo-card p-8 col-span-1 lg:col-span-8 flex flex-col">
             <h2 class="text-3xl font-bold mb-6 text-gray-800">AI Canvas</h2>
             
             <!-- Block 1: Files and Version Info -->
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 mb-6">
+            <div class="neumo-card p-6 mb-6">
                 <h3 class="text-xl font-semibold mb-4 text-gray-800">Tệp trong phiên bản đã chọn:</h3>
-                <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border border-gray-200 p-3 rounded-lg bg-gray-50 mb-4">
+                <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 neumo-input p-3 mb-4">
                     <div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label for="fileNameInput" class="block text-gray-700 text-base font-bold mb-2">Tên tệp:</label>
-                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                        <input type="text" id="fileNameInput" placeholder="e.g., index.html" class="neumo-input w-full py-2 px-3 text-gray-700">
                     </div>
                     <div>
                         <label for="versionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú phiên bản đã chọn:</label>
                         <div class="flex gap-2">
-                            <input type="text" id="versionNotesInput" placeholder="Chưa chọn phiên bản" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500" disabled>
-                            <button id="editVersionNotesBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-3 rounded-lg shadow-md flex-shrink-0" style="min-width: 80px;">Sửa</button>
-                            <button id="saveEditedVersionNotesBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg shadow-md hidden flex-shrink-0" style="min-width: 80px;">Lưu</button>
+                            <input type="text" id="versionNotesInput" placeholder="Chưa chọn phiên bản" class="neumo-input w-full py-2 px-3 text-gray-700" disabled>
+                            <button id="editVersionNotesBtn" class="neumo-btn neumo-btn-warning neumo-btn-small flex-shrink-0" style="min-width: 80px;">Sửa</button>
+                            <button id="saveEditedVersionNotesBtn" class="neumo-btn neumo-btn-primary neumo-btn-small hidden flex-shrink-0" style="min-width: 80px;">Lưu</button>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Block 2: Code Editor -->
-            <div class="flex-grow flex flex-col mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+            <div class="flex-grow flex flex-col mb-6 neumo-card p-6">
                 <label for="editableCodeContent" class="block text-gray-700 text-base font-bold mb-2">Trình soạn thảo:</label>
-                <div id="editorContainer" class="relative flex-grow shadow-inner border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                    <pre class="absolute inset-0 overflow-y-auto p-4 font-mono text-sm bg-gray-50 text-gray-800 leading-relaxed whitespace-pre-wrap z-10" style="tab-size: 4;"><code id="editableCodeContent" contenteditable="true" class="block min-h-full focus:outline-none" style="caret-color: #3b82f6;"></code></pre>
-                    <div id="editorPlaceholder" class="absolute inset-0 p-4 font-mono text-sm text-gray-400 pointer-events-none z-5">Chọn một tệp, hoặc yêu cầu AI tạo code mới...</div>
+                <div id="editorContainer" class="relative flex-grow rounded-lg overflow-hidden">
+                    <pre class="absolute inset-0 overflow-y-auto p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap z-10" style="tab-size: 4;"><code id="editableCodeContent" contenteditable="true" class="block min-h-full"></code></pre>
+                    <div id="editorPlaceholder" class="absolute inset-0 p-4 font-mono text-sm pointer-events-none z-5">Chọn một tệp, hoặc yêu cầu AI tạo code mới...</div>
                 </div>
                 <!-- NEW: Copy Code button moved here -->
                 <div class="mt-4 flex justify-end">
-                    <button id="copyBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0">
+                    <button id="copyBtn" class="neumo-btn neumo-btn-warning py-2 px-4 flex-shrink-0">
                         Sao chép mã
                     </button>
                 </div>
             </div>
 
             <!-- Block 3: AI Explanation -->
-            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-purple-500"> <!-- Added border-l for distinction -->
+            <div class="mb-6 neumo-card p-6" style="border-left: 4px solid var(--neumo-primary);"> <!-- Added border-l for distinction -->
                 <label for="aiExplanationBox" class="block text-gray-700 text-base font-bold mb-2">Giải thích từ AI:</label>
-                <div id="aiExplanationBox" class="w-full h-32 p-4 bg-purple-50 border border-purple-200 rounded-lg overflow-y-auto text-sm text-gray-700 leading-relaxed">
-                    <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>
+                <div id="aiExplanationBox" class="w-full h-32">
+                    <p>Phần giải thích của AI sẽ xuất hiện ở đây...</p>
                 </div>
             </div>
 
             <!-- NEW Block for Main Style Selection -->
-            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-blue-500">
+            <div class="mb-6 neumo-card p-6" style="border-left: 4px solid var(--neumo-primary);">
                 <label for="mainStyleSelect" class="block text-gray-700 text-base font-bold mb-2">Chọn Phong cách Chủ đạo cho AI:</label>
-                <select id="mainStyleSelect" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                <select id="mainStyleSelect" class="neumo-input w-full py-2 px-3 text-gray-700">
                     <option value="">Không có phong cách cụ thể (mặc định)</option>
                     <option value="Modern Minimalist">Hiện đại Tối giản (Modern Minimalist)</option>
                     <option value="Clean and Professional">Sạch sẽ và Chuyên nghiệp (Clean and Professional)</option>
@@ -248,46 +475,46 @@
             </div>
             
             <!-- Block 4: AI Prompt and Send Button -->
-            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-lg">
+            <div class="neumo-card p-6">
                  <label for="aiPromptInput" class="block text-gray-700 text-base font-bold mb-2">Yêu cầu cho AI:</label>
-                 <textarea id="aiPromptInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500" placeholder="e.g., 'Thêm bình luận cho hàm này' hoặc 'Tạo một nút bấm màu đỏ'"></textarea>
+                 <textarea id="aiPromptInput" rows="3" class="neumo-input w-full py-2 px-3 text-gray-700" placeholder="e.g., 'Thêm bình luận cho hàm này' hoặc 'Tạo một nút bấm màu đỏ'"></textarea>
                  
                  <!-- NEW: AI Prompt Suggestions -->
                  <div class="mt-4">
                      <div class="flex items-center gap-2 mb-2">
                         <label class="block text-gray-700 text-sm font-bold">Gợi ý câu lệnh AI:</label>
-                        <button id="toggleAiSuggestionsBtn" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-2 rounded-full">Ẩn</button>
+                        <button id="toggleAiSuggestionsBtn" class="neumo-btn neumo-btn-secondary neumo-btn-tiny py-1 px-2 rounded-full">Ẩn</button>
                      </div>
                      <div id="aiPromptSuggestions" class="flex flex-wrap gap-2">
                          <!-- Suggestions will be injected here by JS -->
                      </div>
                  </div>
 
-                 <button id="sendToAIButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md mt-4 w-full flex items-center justify-center gap-2">
+                 <button id="sendToAIButton" class="neumo-btn neumo-btn-indigo py-3 px-5 mt-4 w-full">
                     <span id="aiButtonText">Gửi tới AI</span>
                     <div id="aiButtonSpinner" class="spinner hidden"></div>
                 </button>
             </div>
 
             <!-- Block 5: Action Buttons -->
-            <div class="mt-6 p-6 bg-white rounded-xl border border-gray-200 shadow-lg">
+            <div class="mt-6 neumo-card p-6">
                 <!-- NEW INPUT FIELD FOR NEW VERSION NOTES -->
                 <div class="mb-4">
                     <label for="newVersionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú cho phiên bản mới:</label>
-                    <input type="text" id="newVersionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                    <input type="text" id="newVersionNotesInput" placeholder="e.g., 'Refactored with AI'" class="neumo-input w-full py-2 px-3 text-gray-700">
                 </div>
                 <!-- END NEW INPUT FIELD -->
 
                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> <!-- Adjusted grid-cols-4 to grid-cols-3 -->
-                     <button id="saveVersionBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
+                     <button id="saveVersionBtn" class="neumo-btn neumo-btn-primary py-3 px-5 w-full">
                         Lưu phiên bản mới
                     </button>
                     <!-- Removed copyBtn from here -->
-                    <button id="previewBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
+                    <button id="previewBtn" class="neumo-btn neumo-btn-info py-3 px-5 w-full">
                         Xem trước mã
                     </button>
                     <!-- NÚT XÓA (Soft Delete) -->
-                    <button id="softDeleteVersionBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full">
+                    <button id="softDeleteVersionBtn" class="neumo-btn neumo-btn-danger py-3 px-5 w-full">
                         Xóa phiên bản
                     </button>
                 </div>
@@ -296,54 +523,54 @@
     </main>
 
     <!-- Hộp thông báo tùy chỉnh -->
-    <div id="messageBox" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg hidden z-50 transition-opacity duration-300 opacity-0">
+    <div id="messageBox" class="fixed bottom-4 right-4 neumo-card px-6 py-3 hidden z-50 transition-opacity duration-300 opacity-0" style="background-color: rgba(55, 65, 81, 0.9); color: white;">
         <span id="messageContent"></span>
     </div>
 
     <!-- Modal để thêm ứng dụng mới -->
     <div id="addNewAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+        <div class="neumo-card p-8 w-full max-w-md">
             <h3 class="text-2xl font-bold mb-6 text-gray-800">Add New Application</h3>
             <div class="mb-4">
                 <label for="newAppNameInput" class="block text-gray-700 text-base font-bold mb-2">Application Name:</label>
-                <input type="text" id="newAppNameInput" placeholder="e.g., 'My Blog App'" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                <input type="text" id="newAppNameInput" placeholder="e.g., 'My Blog App'" class="neumo-input w-full py-2 px-3 text-gray-700 leading-tight">
             </div>
             <div class="flex justify-end gap-4">
-                <button id="cancelNewAppBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Cancel</button>
-                <button id="confirmNewAppBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Add Application</button>
+                <button id="cancelNewAppBtn" class="neumo-btn neumo-btn-secondary py-2 px-4">Hủy</button>
+                <button id="confirmNewAppBtn" class="neumo-btn neumo-btn-primary py-2 px-4">Thêm ứng dụng</button>
             </div>
         </div>
     </div>
 
     <!-- NEW: Modal để sửa tên ứng dụng -->
     <div id="editAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+        <div class="neumo-card p-8 w-full max-w-md">
             <h3 class="text-2xl font-bold mb-6 text-gray-800">Sửa tên ứng dụng</h3>
             <div class="mb-4">
                 <label for="editAppNameInput" class="block text-gray-700 text-base font-bold mb-2">Tên ứng dụng:</label>
-                <input type="text" id="editAppNameInput" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-500">
+                <input type="text" id="editAppNameInput" class="neumo-input w-full py-2 px-3 text-gray-700 leading-tight">
             </div>
             <div class="flex justify-end gap-4">
-                <button id="cancelEditAppBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Hủy</button>
-                <button id="confirmEditAppBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Lưu</button>
+                <button id="cancelEditAppBtn" class="neumo-btn neumo-btn-secondary py-2 px-4">Hủy</button>
+                <button id="confirmEditAppBtn" class="neumo-btn neumo-btn-primary py-2 px-4">Lưu</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL XEM TRƯỚC -->
     <div id="previewModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
-        <div id="previewModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col"> <!-- Added ID here -->
-            <div class="flex justify-between items-center p-4 border-b border-gray-200">
-                <h3 class="text-xl font-semibold">Bản xem trước</h3>
-                <button id="closePreviewBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+        <div id="previewModalContent" class="w-full max-w-4xl flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200" style="border-color: var(--neumo-dark-shadow);">
+                <h3 class="text-xl font-semibold text-gray-800">Bản xem trước</h3>
+                <button id="closePreviewBtn" class="neumo-btn neumo-btn-secondary" style="background: none; box-shadow: none; font-size: 2rem; padding: 0 0.5rem; color: var(--neumo-text);">&times;</button>
             </div>
             <div class="p-4 flex flex-col items-center">
                 <!-- NEW: Preview Mode Buttons -->
                 <div class="mb-4 flex space-x-2">
-                    <button id="mobileViewBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">
+                    <button id="mobileViewBtn" class="neumo-btn neumo-btn-secondary py-2 px-4">
                         Chế độ di động
                     </button>
-                    <button id="desktopViewBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                    <button id="desktopViewBtn" class="neumo-btn neumo-btn-primary py-2 px-4">
                         Chế độ desktop
                     </button>
                 </div>
@@ -357,13 +584,13 @@
 
     <!-- MODAL PHIÊN BẢN ĐÃ XÓA MỚI -->
     <div id="deletedVersionsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div class="neumo-card p-8 w-full max-w-2xl max-h-[90vh] flex flex-col">
             <h3 class="text-2xl font-bold mb-6 text-gray-800">Phiên bản đã xóa</h3>
             <div id="deletedVersionsList" class="space-y-3 flex-grow overflow-y-auto pr-2">
                 <div class="text-gray-500 text-center py-4">Đang tải các phiên bản đã xóa...</div>
             </div>
             <div class="flex justify-end gap-4 mt-6">
-                <button id="closeDeletedVersionsModalBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">Đóng</button>
+                <button id="closeDeletedVersionsModalBtn" class="neumo-btn neumo-btn-secondary py-2 px-4">Đóng</button>
             </div>
         </div>
     </div>
@@ -559,7 +786,7 @@
             aiPromptSuggestions.forEach(prompt => {
                 const button = document.createElement('button');
                 button.textContent = prompt;
-                button.className = 'bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs py-1 px-3 rounded-full transition duration-200 cursor-pointer border border-blue-200 whitespace-nowrap overflow-hidden text-ellipsis';
+                button.className = 'neumo-btn neumo-btn-secondary neumo-btn-tiny transition duration-200 cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis';
                 button.title = prompt;
                 button.dataset.prompt = prompt; // Use dataset for click handler
                 fragment.appendChild(button);
@@ -663,15 +890,15 @@
             const fragment = document.createDocumentFragment();
             appsToRender.forEach((appData, index) => {
                 const appItem = document.createElement('div');
-                appItem.className = 'list-item bg-white hover:bg-blue-50 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm flex justify-between items-center';
+                appItem.className = 'list-item flex justify-between items-center';
                 if (appData.id === currentAppId) appItem.classList.add('selected');
                 appItem.dataset.appId = appData.id;
                 appItem.dataset.appName = appData.name;
                 appItem.innerHTML = `
                     <div class="flex-grow font-medium text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap">${index + 1}. ${appData.name}</div>
-                    <div class="flex-shrink-0 flex gap-0.5"> <!-- Changed gap-1 to gap-0.5 -->
-                        <button class="edit-app-btn bg-yellow-400 hover:bg-yellow-500 text-white text-xs font-bold py-0.5 px-1.5 rounded-md transition duration-200" title="Sửa">Sửa</button> <!-- Changed py-1 px-2 to py-0.5 px-1.5 -->
-                        <button class="delete-app-btn bg-red-400 hover:bg-red-500 text-white text-xs font-bold py-0.5 px-1.5 rounded-md transition duration-200" title="Xóa">Xóa</button> <!-- Changed py-1 px-2 to py-0.5 px-1.5 -->
+                    <div class="flex-shrink-0 flex gap-0.5">
+                        <button class="edit-app-btn neumo-btn neumo-btn-warning neumo-btn-small neumo-btn-tiny" title="Sửa">Sửa</button>
+                        <button class="delete-app-btn neumo-btn neumo-btn-danger neumo-btn-small neumo-btn-tiny" title="Xóa">Xóa</button>
                     </div>
                 `;
                 fragment.appendChild(appItem);
@@ -728,7 +955,7 @@
                 snapshot.forEach(doc => {
                     const version = doc.data();
                     const versionItem = document.createElement('div');
-                    versionItem.className = 'list-item bg-white hover:bg-blue-50 p-3 rounded-lg cursor-pointer transition duration-200 shadow-sm';
+                    versionItem.className = 'list-item';
                     if (doc.id === currentVersionId) versionItem.classList.add('selected');
                     const date = new Date(version.timestamp).toLocaleString();
                     versionItem.innerHTML = `
@@ -777,7 +1004,7 @@
                     const fragment = document.createDocumentFragment();
                     sortedFiles.forEach(fileData => {
                         const fileItem = document.createElement('div');
-                        fileItem.className = 'list-item bg-white hover:bg-blue-50 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm';
+                        fileItem.className = 'list-item bg-white hover:bg-blue-50 p-2 rounded-lg cursor-pointer transition duration-200 shadow-sm text-sm'; // Still uses list-item, just without the Neumorphism card style
                         fileItem.textContent = fileData.filename;
                         fileItem.dataset.filename = fileData.filename; // Store filename for click delegation
                         fragment.appendChild(fileItem);
@@ -947,18 +1174,18 @@
                 elements.previewFrameContainer.classList.add('mobile-view');
                 elements.previewModalContent.classList.remove('desktop-mode-active'); // NEW: Remove desktop size class
 
-                elements.mobileViewBtn.classList.remove('bg-gray-300', 'text-gray-800');
-                elements.mobileViewBtn.classList.add('bg-blue-500', 'text-white');
-                elements.desktopViewBtn.classList.remove('bg-blue-500', 'text-white');
-                elements.desktopViewBtn.classList.add('bg-gray-300', 'text-gray-800');
+                elements.mobileViewBtn.classList.remove('neumo-btn-secondary');
+                elements.mobileViewBtn.classList.add('neumo-btn-primary');
+                elements.desktopViewBtn.classList.remove('neumo-btn-primary');
+                elements.desktopViewBtn.classList.add('neumo-btn-secondary');
             } else { // 'desktop'
                 elements.previewFrameContainer.classList.remove('mobile-view');
                 elements.previewModalContent.classList.add('desktop-mode-active'); // NEW: Add desktop size class
 
-                elements.desktopViewBtn.classList.remove('bg-gray-300', 'text-gray-800');
-                elements.desktopViewBtn.classList.add('bg-blue-500', 'text-white');
-                elements.mobileViewBtn.classList.remove('bg-blue-500', 'text-white');
-                elements.mobileViewBtn.classList.add('bg-gray-300', 'text-gray-800');
+                elements.desktopViewBtn.classList.remove('neumo-btn-secondary');
+                elements.desktopViewBtn.classList.add('neumo-btn-primary');
+                elements.mobileViewBtn.classList.remove('neumo-btn-primary');
+                elements.mobileViewBtn.classList.add('neumo-btn-secondary');
             }
             // Tùy chọn: re-assign srcdoc để ép iframe refresh nếu cần thiết,
             // nhưng thường thì thay đổi CSS không cần điều này.
@@ -1206,7 +1433,7 @@
                 snapshot.forEach(doc => {
                     const version = doc.data();
                     const versionItem = document.createElement('div');
-                    versionItem.className = 'bg-gray-100 p-3 rounded-lg shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2';
+                    versionItem.className = 'neumo-card p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2';
                     const deletedAtDate = version.deletedAt ? new Date(version.deletedAt.toDate()).toLocaleString() : 'N/A';
                     
                     versionItem.innerHTML = `
@@ -1216,8 +1443,8 @@
                             <p class="text-xs text-gray-400">Đã xóa vào: ${deletedAtDate}</p>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-0">
-                            <button class="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 restore-btn" data-version-id="${doc.id}">Khôi phục</button>
-                            <button class="bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded-md transition duration-300 permanent-delete-btn" data-version-id="${doc.id}">Xóa vĩnh viễn</button>
+                            <button class="neumo-btn neumo-btn-primary neumo-btn-small restore-btn" data-version-id="${doc.id}">Khôi phục</button>
+                            <button class="neumo-btn neumo-btn-danger neumo-btn-small permanent-delete-btn" data-version-id="${doc.id}">Xóa vĩnh viễn</button>
                         </div>
                     `;
                     fragment.appendChild(versionItem);
