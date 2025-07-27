@@ -55,10 +55,21 @@
         }
         /* CSS cho Modal xem trước */
         #previewModal iframe {
-            width: 100%;
+            width: 100%; /* Giữ 100% so với container cha */
             height: 80vh;
             border: 1px solid #e5e7eb; /* gray-200 */
             border-radius: 0.5rem;
+        }
+
+        /* NEW: Styles for preview modes */
+        #previewFrameContainer {
+            transition: max-width 0.3s ease-in-out; /* Hiệu ứng chuyển đổi mượt mà */
+            max-width: 100%; /* Mặc định là full width của modal */
+            width: 100%; /* Đảm bảo nó chiếm đủ không gian theo max-width */
+        }
+
+        #previewFrameContainer.mobile-view {
+            max-width: 375px; /* Chiều rộng điển hình cho thiết bị di động */
         }
 
         /* Thêm style cho trình soạn thảo mới */
@@ -240,8 +251,20 @@
                 <h3 class="text-xl font-semibold">Bản xem trước</h3>
                 <button id="closePreviewBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
             </div>
-            <div class="p-4">
-                <iframe id="previewFrame" title="Preview Content"></iframe>
+            <div class="p-4 flex flex-col items-center">
+                <!-- NEW: Preview Mode Buttons -->
+                <div class="mb-4 flex space-x-2">
+                    <button id="mobileViewBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">
+                        Chế độ di động
+                    </button>
+                    <button id="desktopViewBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                        Chế độ desktop
+                    </button>
+                </div>
+                <!-- Container for the iframe to control its width -->
+                <div id="previewFrameContainer" class="w-full">
+                    <iframe id="previewFrame" title="Preview Content"></iframe>
+                </div>
             </div>
         </div>
     </div>
@@ -359,6 +382,10 @@
             deletedVersionsModal: document.getElementById('deletedVersionsModal'),
             deletedVersionsList: document.getElementById('deletedVersionsList'),
             closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
+            // NEW: Preview mode elements
+            mobileViewBtn: document.getElementById('mobileViewBtn'),
+            desktopViewBtn: document.getElementById('desktopViewBtn'),
+            previewFrameContainer: document.getElementById('previewFrameContainer'),
         };
 
         const mainCodeEditor = elements.editableCodeContent; // Map lại biến cũ `mainCodeEditor` vào element mới
@@ -555,7 +582,6 @@
             chat = null;
             currentVersionFiles.clear(); // Clear cached files
 
-            elements.currentAppNameSpan.textContent = appName;
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
             document.querySelector(`#applicationsList [data-app-id="${appId}"]`)?.classList.add('selected');
 
@@ -778,12 +804,35 @@
             }
             elements.previewFrame.srcdoc = codeToPreview;
             elements.previewModal.classList.remove('hidden');
+            // Set default view to desktop when modal opens
+            setPreviewMode('desktop'); 
         };
 
         const closePreview = () => {
             elements.previewModal.classList.add('hidden');
             elements.previewFrame.srcdoc = '';
         };
+
+        // NEW: Function to handle setting the preview mode
+        const setPreviewMode = (mode) => {
+            if (mode === 'mobile') {
+                elements.previewFrameContainer.classList.add('mobile-view');
+                elements.mobileViewBtn.classList.remove('bg-gray-300', 'text-gray-800');
+                elements.mobileViewBtn.classList.add('bg-blue-500', 'text-white');
+                elements.desktopViewBtn.classList.remove('bg-blue-500', 'text-white');
+                elements.desktopViewBtn.classList.add('bg-gray-300', 'text-gray-800');
+            } else { // 'desktop'
+                elements.previewFrameContainer.classList.remove('mobile-view');
+                elements.desktopViewBtn.classList.remove('bg-gray-300', 'text-gray-800');
+                elements.desktopViewBtn.classList.add('bg-blue-500', 'text-white');
+                elements.mobileViewBtn.classList.remove('bg-blue-500', 'text-white');
+                elements.mobileViewBtn.classList.add('bg-gray-300', 'text-gray-800');
+            }
+            // Tùy chọn: re-assign srcdoc để ép iframe refresh nếu cần thiết,
+            // nhưng thường thì thay đổi CSS không cần điều này.
+            // elements.previewFrame.srcdoc = elements.previewFrame.srcdoc; 
+        };
+
 
         const copyCode = () => {
             const codeToCopy = mainCodeEditor.textContent;
@@ -943,6 +992,10 @@
         elements.softDeleteVersionBtn.addEventListener('click', softDeleteVersion);
         elements.showDeletedVersionsBtn.addEventListener('click', showDeletedVersionsModal);
         elements.closeDeletedVersionsModalBtn.addEventListener('click', closeDeletedVersionsModal);
+
+        // NEW: Event listeners for preview mode buttons
+        elements.mobileViewBtn.addEventListener('click', () => setPreviewMode('mobile'));
+        elements.desktopViewBtn.addEventListener('click', () => setPreviewMode('desktop'));
 
         elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
