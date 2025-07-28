@@ -58,8 +58,6 @@
             border: 3px solid rgba(255, 255, 255, 0.4);
             border-left-color: #fff;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
@@ -477,9 +475,11 @@
         <textarea id="refineFeedbackInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500 mb-2" placeholder="VD: 'Thay đổi màu nút này thành xanh lá cây'"></textarea>
         <div class="flex justify-end gap-2">
             <button id="cancelRefineFeedbackBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-1.5 px-3 rounded-lg text-sm">Hủy</button>
-            <button id="sendRefineFeedbackBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg text-sm">Gửi phản hồi</button>
+            <button id="sendRefineFeedbackBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg shadow-md w-auto flex items-center justify-center gap-2">
+                <span id="refineFeedbackButtonText">Gửi phản hồi</span>
+                <div id="refineFeedbackSpinner" class="spinner hidden w-4 h-4"></div>
+            </button>
         </div>
-        <div id="refineFeedbackSpinner" class="spinner hidden mt-2 mx-auto"></div>
     </div>
 
     <!-- Monaco Editor Loader -->
@@ -608,6 +608,7 @@
             refineFeedbackInput: document.getElementById('refineFeedbackInput'), // NEW
             sendRefineFeedbackBtn: document.getElementById('sendRefineFeedbackBtn'), // NEW
             cancelRefineFeedbackBtn: document.getElementById('cancelRefineFeedbackBtn'), // NEW
+            refineFeedbackButtonText: document.getElementById('refineFeedbackButtonText'), // NEW
             refineFeedbackSpinner: document.getElementById('refineFeedbackSpinner'), // NEW
         };
 
@@ -1226,9 +1227,14 @@
                 return showMessage("Vui lòng nhập phản hồi của bạn.", 3000);
             }
 
+            // Start loading indicators
             elements.sendRefineFeedbackBtn.disabled = true;
             elements.cancelRefineFeedbackBtn.disabled = true;
+            elements.refineFeedbackInput.disabled = true;
+            elements.refineFeedbackButtonText.textContent = 'Đang gửi...';
             elements.refineFeedbackSpinner.classList.remove('hidden');
+            if (monacoEditor) monacoEditor.updateOptions({ readOnly: true }); // Make editor read-only
+            showMessage("AI đang tinh chỉnh mã. Vui lòng đợi...", 5000); // Persistent message
 
             try {
                 const fullCurrentCode = monacoEditor.getValue();
@@ -1296,18 +1302,23 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 
                 monacoEditor.setValue(newCode); // Update the entire editor content
 
-                showMessage("AI đã tinh chỉnh mã và cung cấp giải thích.");
+                showMessage("Mã đã được tinh chỉnh thành công!");
                 addMessageToChatHistory('ai', "Đã tinh chỉnh mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
 
             } catch (error) {
                 console.error("Error sending refine feedback:", error);
                 showMessage(`Lỗi khi tinh chỉnh mã: ${error.message}`, 5000);
             } finally {
+                // Reset loading indicators
                 elements.sendRefineFeedbackBtn.disabled = false;
                 elements.cancelRefineFeedbackBtn.disabled = false;
+                elements.refineFeedbackInput.disabled = false;
+                elements.refineFeedbackButtonText.textContent = 'Gửi phản hồi';
                 elements.refineFeedbackSpinner.classList.add('hidden');
+                if (monacoEditor) monacoEditor.updateOptions({ readOnly: false }); // Make editor writable again
+                
                 elements.refineFeedbackInput.value = '';
-                toggleRefineMode(); // Turn off refine mode after sending feedback
+                toggleRefineMode(); // Turn off refine mode after sending feedback (this also hides popup)
             }
         };
 
