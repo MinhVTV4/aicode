@@ -89,8 +89,8 @@
         }
         /* Monaco Editor Container Style */
         #monacoEditorContainer {
-            min-height: 400px; /* Chiều cao tối thiểu cho Monaco */
-            height: 100%; /* Đảm bảo Monaco lấp đầy chiều cao của parent pane */
+            min-height: 400px; /* Tăng chiều cao tối thiểu */
+            height: 50vh; /* Chiều cao linh hoạt */
             border: 1px solid #e0e0e0;
             border-radius: 0.5rem;
             overflow: hidden; /* Cần thiết cho Monaco Editor */
@@ -170,28 +170,6 @@
             display: block;
             text-align: left; /* Content remains left-aligned inside */
         }
-
-        /* Resizable Panes Styles */
-        .resizable-handle {
-            height: 10px; /* Chiều cao của tay cầm */
-            background-color: #cbd5e0; /* gray-300 */
-            cursor: ns-resize; /* Con trỏ kéo dọc */
-            margin-top: -8px; /* Kéo lên 8px để phủ phần gap */
-            margin-bottom: -8px; /* Kéo xuống 8px để phủ phần gap */
-            z-index: 10; /* Đảm bảo tay cầm nằm trên các phần tử khác */
-            border-radius: 4px;
-            opacity: 0.8;
-            transition: background-color 0.2s ease;
-            flex-shrink: 0; /* Quan trọng: ngăn tay cầm bị co lại */
-        }
-        .resizable-handle:hover {
-            background-color: #94a3b8; /* gray-400 */
-        }
-        /* Make sure direct children of flex-grow pane can grow */
-        #aiExplanationBox, #aiChatHistoryBox {
-            height: 100%; /* Cho phép nội dung lấp đầy pane */
-        }
-
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -263,7 +241,7 @@
             <h2 class="text-3xl font-bold mb-6 text-gray-800">AI Canvas</h2>
             
             <!-- Block 1: Files and Version Info -->
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 mb-6 flex-shrink-0">
+            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 mb-6">
                 <h3 class="text-xl font-semibold mb-4 text-gray-800">Tệp trong phiên bản đã chọn:</h3>
                 <div id="versionFilesList" class="space-y-2 max-h-48 overflow-y-auto pr-2 border border-gray-300 p-3 rounded-lg bg-gray-50 mb-4">
                     <div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem các tệp của nó.</div>
@@ -284,9 +262,29 @@
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Block 2: Code Editor (Monaco) -->
+            <div class="flex-grow flex flex-col mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <label for="monacoEditorContainer" class="block text-gray-700 text-base font-bold mb-0">Trình soạn thảo (Monaco):</label>
+                    <button id="copyBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
+                        Sao chép mã
+                    </button>
+                </div>
+                <!-- Monaco Editor container -->
+                <div id="monacoEditorContainer" class="rounded-lg shadow-inner"></div>
+            </div>
+
+            <!-- Block 3: AI Explanation -->
+            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-purple-600">
+                <label for="aiExplanationBox" class="block text-gray-700 text-base font-bold mb-2">Giải thích từ AI:</label>
+                <div id="aiExplanationBox" class="w-full min-h-32 p-4 bg-purple-50 border border-purple-200 rounded-lg overflow-y-auto text-sm text-gray-700 leading-relaxed">
+                    <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>
+                </div>
+            </div>
+
             <!-- Block 4: Main Style Selection -->
-            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-blue-600 flex-shrink-0">
+            <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-blue-600">
                 <label for="mainStyleSelect" class="block text-gray-700 text-base font-bold mb-2">Chọn Phong cách Chủ đạo cho AI:</label>
                 <select id="mainStyleSelect" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
                      <option value="">Không có phong cách cụ thể (mặc định)</option>
@@ -306,70 +304,43 @@
                     <option value="Futuristic Tech">Công nghệ Tương lai</option>
                 </select>
             </div>
-
-            <!-- Resizable Panes Container -->
-            <div id="resizablePanesContainer" class="flex-grow flex flex-col gap-6">
-                <!-- Monaco Editor Pane -->
-                <div id="monacoPane" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 flex flex-col flex-grow">
-                    <div class="flex justify-between items-center mb-4">
-                        <label for="monacoEditorContainer" class="block text-gray-700 text-base font-bold mb-0">Trình soạn thảo (Monaco):</label>
-                        <button id="copyBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
-                            Sao chép mã
-                        </button>
-                    </div>
-                    <!-- Monaco Editor container -->
-                    <div id="monacoEditorContainer" class="rounded-lg shadow-inner flex-grow"></div>
+            
+            <!-- Block 5: AI Chat and Code Generation -->
+            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Trò chuyện với AI:</h3>
+                <!-- Adjusted height here -->
+                <div id="aiChatHistoryBox" class="w-full h-[320px] p-3 bg-gray-50 border border-gray-300 rounded-lg overflow-y-auto mb-4 text-sm leading-relaxed">
+                    <p class="text-gray-500 text-center">Bắt đầu trò chuyện để trao đổi về mã của bạn.</p>
                 </div>
 
-                <div class="resizable-handle" data-prev-pane="monacoPane" data-next-pane="aiExplanationPane"></div>
-
-                <!-- AI Explanation Pane -->
-                <div id="aiExplanationPane" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-purple-600 flex flex-col flex-grow">
-                    <label for="aiExplanationBox" class="block text-gray-700 text-base font-bold mb-2">Giải thích từ AI:</label>
-                    <div id="aiExplanationBox" class="w-full min-h-32 p-4 bg-purple-50 border border-purple-200 rounded-lg overflow-y-auto text-sm text-gray-700 leading-relaxed flex-grow">
-                        <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>
-                    </div>
-                </div>
-
-                <div class="resizable-handle" data-prev-pane="aiExplanationPane" data-next-pane="aiChatPane"></div>
-
-                <!-- AI Chat and Code Generation Pane -->
-                <div id="aiChatPane" class="bg-white p-6 rounded-xl border border-gray-200 shadow-lg flex flex-col flex-grow">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800">Trò chuyện với AI:</h3>
-                    <!-- Adjusted height here -->
-                    <div id="aiChatHistoryBox" class="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg overflow-y-auto mb-4 text-sm leading-relaxed flex-grow">
-                        <p class="text-gray-500 text-center">Bắt đầu trò chuyện để trao đổi về mã của bạn.</p>
-                    </div>
-
-                    <label for="aiChatInput" class="block text-gray-700 text-base font-bold mb-2">Nhập tin nhắn cho AI:</label>
-                     <textarea id="aiChatInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" placeholder="e.g., 'Hãy thảo luận về cấu trúc của trang chủ'"></textarea>
-                     
-                     <div class="mt-4">
-                         <div class="flex items-center gap-2 mb-2">
-                            <label class="block text-gray-700 text-sm font-bold">Gợi ý câu lệnh AI:</label>
-                            <button id="toggleAiSuggestionsBtn" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-2 rounded-full">Ẩn</button>
-                         </div>
-                         <div id="aiPromptSuggestions" class="flex flex-wrap gap-2"></div>
+                <label for="aiChatInput" class="block text-gray-700 text-base font-bold mb-2">Nhập tin nhắn cho AI:</label>
+                 <textarea id="aiChatInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" placeholder="e.g., 'Hãy thảo luận về cấu trúc của trang chủ'"></textarea>
+                 
+                 <div class="mt-4">
+                     <div class="flex items-center gap-2 mb-2">
+                        <label class="block text-gray-700 text-sm font-bold">Gợi ý câu lệnh AI:</label>
+                        <button id="toggleAiSuggestionsBtn" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-2 rounded-full">Ẩn</button>
                      </div>
+                     <div id="aiPromptSuggestions" class="flex flex-wrap gap-2"></div>
+                 </div>
 
-                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                        <button id="sendChatMessageBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
-                            <span id="chatButtonText">Thảo luận</span>
-                            <div id="chatButtonSpinner" class="spinner hidden"></div>
-                        </button>
-                        <button id="generateCodeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
-                            <span id="generateCodeButtonText">Tạo mã từ cuộc trò chuyện</span>
-                            <div id="generateCodeButtonSpinner" class="spinner hidden"></div>
-                        </button>
-                     </div>
-                     <button id="clearChatBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md mt-4 w-full text-sm">
-                        Xóa cuộc trò chuyện
-                     </button>
-                </div>
+                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <button id="sendChatMessageBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
+                        <span id="chatButtonText">Thảo luận</span>
+                        <div id="chatButtonSpinner" class="spinner hidden"></div>
+                    </button>
+                    <button id="generateCodeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
+                        <span id="generateCodeButtonText">Tạo mã từ cuộc trò chuyện</span>
+                        <div id="generateCodeButtonSpinner" class="spinner hidden"></div>
+                    </button>
+                 </div>
+                 <button id="clearChatBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md mt-4 w-full text-sm">
+                    Xóa cuộc trò chuyện
+                 </button>
             </div>
 
             <!-- Block 6: Action Buttons -->
-            <div class="mt-6 p-6 bg-white rounded-xl border border-gray-200 shadow-lg flex-shrink-0">
+            <div class="mt-6 p-6 bg-white rounded-xl border border-gray-200 shadow-lg">
                 <div class="mb-4">
                     <label for="newVersionNotesInput" class="block text-gray-700 text-base font-bold mb-2">Ghi chú cho phiên bản mới:</label>
                     <input type="text" id="newVersionNotesInput" placeholder="e.g., 'Refactored with AI'" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500">
@@ -566,11 +537,6 @@
             closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
             aiChatHistoryBox: document.getElementById('aiChatHistoryBox'), // New
             clearChatBtn: document.getElementById('clearChatBtn'), // New
-            // New elements for resizable panes
-            monacoPane: document.getElementById('monacoPane'),
-            aiExplanationPane: document.getElementById('aiExplanationPane'),
-            aiChatPane: document.getElementById('aiChatPane'),
-            resizablePanesContainer: document.getElementById('resizablePanesContainer'),
         };
 
         const aiPromptSuggestions = [
@@ -670,8 +636,6 @@
                 initializeEditor(); // Initialize Monaco Editor after login
                 loadApplications();
                 renderAiPromptSuggestions();
-                // Setup resizable panes after main content is visible
-                setTimeout(setupResizablePanes, 500); // Small delay to ensure layout is stable
             } else {
                 userId = null;
                 elements.userEmailDisplay.classList.add('hidden');
@@ -891,6 +855,9 @@
                 
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                 
+                // --- MODIFIED: Reset chat for new file context but handle initial greeting properly ---
+                // Removed: clearChatHistory(); 
+                // Removed: elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Tệp mới đã được tải. Bắt đầu cuộc trò chuyện mới về mã này.</p>';
                 // aiExplanationBox should retain the explanation of the selected version, not reset
                 elements.aiChatInput.value = ''; // Keep clearing only the input box
             }
@@ -1258,95 +1225,6 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 showMessage('Đã xóa vĩnh viễn!');
             } catch (error) { console.error("Error permanently deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
         };
-
-        // --- Resizable Panes Logic ---
-        function setupResizablePanes() {
-            const handles = document.querySelectorAll('.resizable-handle');
-            handles.forEach(handle => {
-                let isResizing = false;
-                let startY;
-                let startHeightPrev;
-                let startHeightNext;
-                let prevPane;
-                let nextPane;
-
-                handle.addEventListener('mousedown', (e) => {
-                    isResizing = true;
-                    startY = e.clientY;
-                    prevPane = document.getElementById(handle.dataset.prevPane);
-                    nextPane = document.getElementById(handle.dataset.nextPane);
-
-                    // Ensure height is set in pixels for consistent resizing
-                    if (!prevPane.style.height || prevPane.style.height === "0px") {
-                         prevPane.style.height = `${prevPane.offsetHeight}px`;
-                    }
-                    if (!nextPane.style.height || nextPane.style.height === "0px") {
-                         nextPane.style.height = `${nextPane.offsetHeight}px`;
-                    }
-
-                    startHeightPrev = prevPane.offsetHeight;
-                    startHeightNext = nextPane.offsetHeight;
-
-                    // Disable flex-grow while resizing
-                    prevPane.style.flexGrow = '0';
-                    nextPane.style.flexGrow = '0';
-
-                    document.body.style.cursor = 'ns-resize';
-                    document.body.style.userSelect = 'none'; // Prevent text selection during drag
-                });
-
-                document.addEventListener('mousemove', (e) => {
-                    if (!isResizing) return;
-
-                    const dy = e.clientY - startY; // Change in Y
-                    
-                    const newHeightPrev = startHeightPrev + dy;
-                    const newHeightNext = startHeightNext - dy;
-
-                    const minHeight = 100; // Minimum height in pixels for each pane
-
-                    // Check bounds and apply new heights
-                    if (newHeightPrev >= minHeight && newHeightNext >= minHeight) {
-                        prevPane.style.height = `${newHeightPrev}px`;
-                        nextPane.style.height = `${newHeightNext}px`;
-                        
-                        // Trigger Monaco Editor layout if it's the previous pane
-                        if (prevPane.id === 'monacoPane' && monacoEditor) {
-                            monacoEditor.layout();
-                        }
-                    } else if (newHeightPrev < minHeight) {
-                        // Cap previous pane at minHeight, adjust next pane accordingly
-                        const overshoot = minHeight - newHeightPrev;
-                        prevPane.style.height = `${minHeight}px`;
-                        nextPane.style.height = `${startHeightNext + dy - overshoot}px`;
-                         if (prevPane.id === 'monacoPane' && monacoEditor) {
-                            monacoEditor.layout();
-                        }
-                    } else if (newHeightNext < minHeight) {
-                        // Cap next pane at minHeight, adjust previous pane accordingly
-                        const overshoot = minHeight - newHeightNext;
-                        prevPane.style.height = `${startHeightPrev + dy + overshoot}px`;
-                        nextPane.style.height = `${minHeight}px`;
-                         if (prevPane.id === 'monacoPane' && monacoEditor) {
-                            monacoEditor.layout();
-                        }
-                    }
-                });
-
-                document.addEventListener('mouseup', () => {
-                    if (isResizing) {
-                        isResizing = false;
-                        // Restore flex-grow after resizing is complete (optional, depends on desired behavior)
-                        // Setting fixed heights usually means you don't want flex-grow to interfere
-                        // prevPane.style.flexGrow = '1'; 
-                        // nextPane.style.flexGrow = '1';
-
-                        document.body.style.cursor = 'default';
-                        document.body.style.userSelect = 'auto';
-                    }
-                });
-            });
-        }
         
         // --- Event Listeners ---
         elements.loginBtn.addEventListener('click', () => handleAuth(false));
