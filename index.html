@@ -92,6 +92,27 @@
             border-radius: 0.5rem;
             overflow: hidden; /* Cần thiết cho Monaco Editor */
         }
+        .ai-message {
+            background-color: #e0f2f7; /* Light blue for AI */
+            border-left: 4px solid #0288d1;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #e8eaf6; /* Light indigo for user */
+            border-left: 4px solid #3f51b5;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            word-wrap: break-word;
+            text-align: right; /* User messages align right */
+        }
+        .user-message span {
+            display: block;
+            text-align: left; /* Content remains left-aligned inside */
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -201,7 +222,7 @@
             <div class="mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200 border-l-4 border-purple-600">
                 <label for="aiExplanationBox" class="block text-gray-700 text-base font-bold mb-2">Giải thích từ AI:</label>
                 <div id="aiExplanationBox" class="w-full h-32 p-4 bg-purple-50 border border-purple-200 rounded-lg overflow-y-auto text-sm text-gray-700 leading-relaxed">
-                    <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>
+                    <p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>
                 </div>
             </div>
 
@@ -227,10 +248,16 @@
                 </select>
             </div>
             
-            <!-- Block 5: AI Prompt and Send Button -->
+            <!-- Block 5: AI Chat and Code Generation -->
             <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-lg">
-                 <label for="aiPromptInput" class="block text-gray-700 text-base font-bold mb-2">Yêu cầu cho AI:</label>
-                 <textarea id="aiPromptInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" placeholder="e.g., 'Thêm bình luận cho hàm này' hoặc 'Tạo một nút bấm màu đỏ'"></textarea>
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Trò chuyện với AI:</h3>
+                <!-- Adjusted height here -->
+                <div id="aiChatHistoryBox" class="w-full h-[320px] p-3 bg-gray-50 border border-gray-300 rounded-lg overflow-y-auto mb-4 text-sm leading-relaxed">
+                    <p class="text-gray-500 text-center">Bắt đầu trò chuyện để trao đổi về mã của bạn.</p>
+                </div>
+
+                <label for="aiChatInput" class="block text-gray-700 text-base font-bold mb-2">Nhập tin nhắn cho AI:</label>
+                 <textarea id="aiChatInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" placeholder="e.g., 'Hãy thảo luận về cấu trúc của trang chủ'"></textarea>
                  
                  <div class="mt-4">
                      <div class="flex items-center gap-2 mb-2">
@@ -240,10 +267,19 @@
                      <div id="aiPromptSuggestions" class="flex flex-wrap gap-2"></div>
                  </div>
 
-                 <button id="sendToAIButton" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md mt-4 w-full flex items-center justify-center gap-2">
-                    <span id="aiButtonText">Gửi tới AI</span>
-                    <div id="aiButtonSpinner" class="spinner hidden"></div>
-                </button>
+                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <button id="sendChatMessageBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
+                        <span id="chatButtonText">Gửi tin nhắn</span>
+                        <div id="chatButtonSpinner" class="spinner hidden"></div>
+                    </button>
+                    <button id="generateCodeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
+                        <span id="generateCodeButtonText">Tạo mã từ cuộc trò chuyện</span>
+                        <div id="generateCodeButtonSpinner" class="spinner hidden"></div>
+                    </button>
+                 </div>
+                 <button id="clearChatBtn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md mt-4 w-full text-sm">
+                    Xóa cuộc trò chuyện
+                 </button>
             </div>
 
             <!-- Block 6: Action Buttons -->
@@ -379,7 +415,7 @@
         let currentVersionId = null; 
         let userId = null;
         let allApps = [];
-        let chat = null;
+        let chat = null; // AI chat instance
         let currentVersionFiles = new Map();
         let monacoEditor; // Monaco Editor instance
 
@@ -404,10 +440,13 @@
             saveEditedVersionNotesBtn: document.getElementById('saveEditedVersionNotesBtn'),
             newVersionNotesInput: document.getElementById('newVersionNotesInput'),
             monacoEditorContainer: document.getElementById('monacoEditorContainer'), // New
-            aiPromptInput: document.getElementById('aiPromptInput'),
-            sendToAIButton: document.getElementById('sendToAIButton'),
-            aiButtonText: document.getElementById('aiButtonText'),
-            aiButtonSpinner: document.getElementById('aiButtonSpinner'),
+            aiChatInput: document.getElementById('aiChatInput'), // Changed from aiPromptInput
+            sendChatMessageBtn: document.getElementById('sendChatMessageBtn'), // Changed from sendToAIButton
+            chatButtonText: document.getElementById('chatButtonText'),
+            chatButtonSpinner: document.getElementById('chatButtonSpinner'),
+            generateCodeBtn: document.getElementById('generateCodeBtn'), // New
+            generateCodeButtonText: document.getElementById('generateCodeButtonText'), // New
+            generateCodeButtonSpinner: document.getElementById('generateCodeButtonSpinner'), // New
             aiExplanationBox: document.getElementById('aiExplanationBox'),
             aiPromptSuggestionsContainer: document.getElementById('aiPromptSuggestions'),
             toggleAiSuggestionsBtn: document.getElementById('toggleAiSuggestionsBtn'),
@@ -438,6 +477,8 @@
             deletedVersionsModal: document.getElementById('deletedVersionsModal'),
             deletedVersionsList: document.getElementById('deletedVersionsList'),
             closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
+            aiChatHistoryBox: document.getElementById('aiChatHistoryBox'), // New
+            clearChatBtn: document.getElementById('clearChatBtn'), // New
         };
 
         const aiPromptSuggestions = [
@@ -456,7 +497,7 @@
                 monacoEditor = monaco.editor.create(elements.monacoEditorContainer, {
                     value: '// Chọn một tệp hoặc yêu cầu AI tạo mã mới...',
                     language: 'plaintext',
-                    theme: 'vs-light', // Changed from 'vs-dark' to 'vs-light'
+                    theme: 'vs-light',
                     automaticLayout: true,
                     fontSize: 14,
                     wordWrap: 'on',
@@ -499,6 +540,15 @@
         function toggleAiSuggestions() {
             elements.aiPromptSuggestionsContainer.classList.toggle('hidden');
             elements.toggleAiSuggestionsBtn.textContent = elements.aiPromptSuggestionsContainer.classList.contains('hidden') ? 'Hiện' : 'Ẩn';
+        }
+
+        // Function to add messages to chat history UI
+        function addMessageToChatHistory(sender, message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = sender === 'user' ? 'user-message' : 'ai-message';
+            messageDiv.innerHTML = `<strong>${sender === 'user' ? 'Bạn' : 'AI'}:</strong> <span>${message.replace(/\n/g, '<br>')}</span>`;
+            elements.aiChatHistoryBox.appendChild(messageDiv);
+            elements.aiChatHistoryBox.scrollTop = elements.aiChatHistoryBox.scrollHeight; // Scroll to bottom
         }
 
         // --- Firebase Auth ---
@@ -603,7 +653,9 @@
             currentAppId = appId;
             currentAppName = appName;
             currentVersionId = null;
-            chat = null;
+            
+            clearChatHistory(); // Reset chat when application changes
+            elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Đã chọn ứng dụng mới. Bắt đầu trò chuyện.</p>';
             currentVersionFiles.clear();
 
             elements.currentAppNameSpan.textContent = appName;
@@ -619,8 +671,8 @@
             elements.saveEditedVersionNotesBtn.classList.add('hidden');
             elements.newVersionNotesInput.value = '';
             elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
-            elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
-            elements.aiPromptInput.value = '';
+            elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
+            elements.aiChatInput.value = '';
         };
 
         const loadVersions = (appId) => {
@@ -646,12 +698,13 @@
 
         const selectVersion = async (appId, versionId) => {
             currentVersionId = versionId;
-            chat = null;
-            elements.aiPromptInput.value = '';
+            clearChatHistory(); // Reset chat when version changes
+            elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Đã chọn phiên bản mới. Bắt đầu trò chuyện.</p>';
+            elements.aiChatInput.value = '';
             document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
             document.querySelector(`#versionsList [data-version-id="${versionId}"]`)?.classList.add('selected');
             elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
-            elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+            elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
 
             try {
                 const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
@@ -700,36 +753,119 @@
                 monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
                 
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
-                chat = null;
-                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                
+                clearChatHistory(); // Reset chat for new file context
+                elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Tệp mới đã được tải. Bắt đầu cuộc trò chuyện mới về mã này.</p>';
+                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
+                elements.aiChatInput.value = '';
             }
         };
 
         // --- AI Logic ---
-        const callAI = async () => {
-            if (!aiModel || !monacoEditor) return showMessage("Mô hình AI hoặc trình soạn thảo chưa sẵn sàng.");
-            const userPrompt = elements.aiPromptInput.value.trim();
-            if (!userPrompt) return showMessage("Vui lòng nhập yêu cầu cho AI.");
+        const initialSystemPrompt = `Bạn là một trợ lý lập trình chuyên sâu về HTML, CSS, và JavaScript.
+**Mục tiêu của bạn:**
+*   **Khi tôi nhấn 'Gửi tin nhắn' (Send Message)**: Bạn sẽ tham gia vào cuộc trò chuyện, thảo luận, phân tích, giải thích, đưa ra lời khuyên hoặc gợi ý về mã nguồn hiện tại trong trình soạn thảo. **Bạn KHÔNG được tạo ra mã nguồn hoặc sử dụng định dạng '---CODE---' trong các phản hồi này.**
+*   **Khi tôi nhấn 'Tạo mã từ cuộc trò chuyện' (Generate Code from Chat)**: Đây là yêu cầu của tôi để bạn tạo ra mã nguồn. Bạn PHẢI trả lời theo định dạng:
+    1.  Giải thích ngắn gọn các thay đổi bạn đã thực hiện.
+    2.  Thêm dòng phân cách '---CODE---'.
+    3.  Chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).
+Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện tại trong trình soạn thảo. Tôi sẽ luôn cung cấp mã nguồn hiện tại cho bạn trong mỗi tin nhắn của tôi.`;
 
-            elements.aiButtonText.textContent = 'AI đang xử lý...';
-            elements.aiButtonSpinner.classList.remove('hidden');
-            elements.sendToAIButton.disabled = true;
+
+        const sendChatMessage = async () => {
+            if (!aiModel) return showMessage("Mô hình AI chưa sẵn sàng.");
+            const userMessage = elements.aiChatInput.value.trim();
+            if (!userMessage) return showMessage("Vui lòng nhập tin nhắn.");
+
+            // Get current editor content and file name for context
+            const currentCode = monacoEditor ? monacoEditor.getValue() : "Trình soạn thảo hiện đang trống hoặc không sẵn sàng.";
+            const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
+
+            addMessageToChatHistory('user', userMessage); // Display user's original message
+            elements.aiChatInput.value = ''; // Clear input immediately
+
+            elements.chatButtonText.textContent = 'Đang gửi...';
+            elements.chatButtonSpinner.classList.remove('hidden');
+            elements.sendChatMessageBtn.disabled = true;
 
             try {
-                const selectedStyle = elements.mainStyleSelect.value;
-                let instruction = `Bạn là một trợ lý lập trình. Trả lời theo định dạng: Đầu tiên, giải thích ngắn gọn. Sau đó, thêm dòng phân cách '---CODE---'. Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ.`;
-                if (selectedStyle) instruction += ` Áp dụng phong cách "${selectedStyle}".`;
-
                 if (!chat) {
-                    const history = [
-                        { role: "user", parts: [{ text: `${instruction}\n\nMã nguồn ban đầu:\n---\n${monacoEditor.getValue()}` }] },
-                        { role: "model", parts: [{ text: "Đã hiểu. Yêu cầu của bạn là gì?" }] }
-                    ];
-                    chat = aiModel.startChat({ history });
+                    // Initialize chat with the system prompt and an initial greeting from AI
+                    chat = aiModel.startChat({
+                        history: [
+                            { role: "user", parts: [{ text: initialSystemPrompt }] }, // System instruction
+                            { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] } // AI's opening
+                        ]
+                    });
+                    // Display the AI's initial greeting in chat history
+                    addMessageToChatHistory('ai', "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!");
                 }
 
-                const result = await chat.sendMessage(userPrompt);
+                // For every user message, provide the *current state* of the code explicitly.
+                // This is crucial for the AI to always have the latest context.
+                const messageForAI = `Tệp hiện tại: ${currentFileName}\nMã nguồn hiện tại:\n\`\`\`\n${currentCode}\n\`\`\`\n\nTin nhắn của tôi: ${userMessage}`;
+                
+                const result = await chat.sendMessage(messageForAI); // Send the augmented message
+                const aiResponseText = result.response.text();
+                addMessageToChatHistory('ai', aiResponseText);
+
+            } catch (error) {
+                console.error("Error sending chat message:", error);
+                showMessage(`Lỗi khi gửi tin nhắn: ${error.message}`, 5000);
+            } finally {
+                elements.chatButtonText.textContent = 'Gửi tin nhắn';
+                elements.chatButtonSpinner.classList.add('hidden');
+                elements.sendChatMessageBtn.disabled = false;
+            }
+        };
+
+        const generateCodeFromAI = async () => {
+            if (!aiModel || !monacoEditor) return showMessage("Mô hình AI hoặc trình soạn thảo chưa sẵn sàng.");
+            
+            if (!chat) {
+                // If chat wasn't started, initialize it with system prompt
+                 chat = aiModel.startChat({
+                    history: [
+                        { role: "user", parts: [{ text: initialSystemPrompt }] },
+                        { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn." }] }
+                    ]
+                });
+                addMessageToChatHistory('ai', "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn.");
+            }
+
+            elements.generateCodeButtonText.textContent = 'Đang tạo mã...';
+            elements.generateCodeButtonSpinner.classList.remove('hidden');
+            elements.generateCodeBtn.disabled = true;
+            elements.sendChatMessageBtn.disabled = true; // Disable chat button during generation
+
+            try {
+                const currentCode = monacoEditor.getValue();
+                const selectedStyle = elements.mainStyleSelect.value;
+                const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
+
+
+                let codeGenPrompt = `Dựa trên toàn bộ cuộc trò chuyện của chúng ta và mã nguồn hiện tại trong tệp "${currentFileName}":
+\`\`\`
+${currentCode}
+\`\`\`
+Vui lòng tạo ra mã nguồn hoàn chỉnh, đã được cập nhật hoặc mới dựa trên những gì chúng ta đã thảo luận.`;
+                
+                if (selectedStyle) {
+                    codeGenPrompt += ` Áp dụng phong cách "${selectedStyle}" cho mã nguồn và giải thích của bạn.`;
+                }
+
+                codeGenPrompt += `
+Hãy tuân thủ định dạng sau:
+Đầu tiên, giải thích ngắn gọn những thay đổi bạn đã thực hiện.
+Sau đó, thêm dòng phân cách '---CODE---'.
+Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).`;
+                
+                // Add this generation request to chat history for user's side
+                addMessageToChatHistory('user', "Yêu cầu tạo mã: " + (codeGenPrompt.length > 200 ? codeGenPrompt.substring(0, 200) + "..." : codeGenPrompt));
+
+                const result = await chat.sendMessage(codeGenPrompt); // Send the specific generation prompt
                 const fullResponseText = result.response.text();
+                
                 const separator = '---CODE---';
                 let explanation = "AI không cung cấp giải thích.";
                 let code = fullResponseText;
@@ -738,23 +874,52 @@
                     const parts = fullResponseText.split(separator);
                     explanation = parts[0].trim();
                     code = parts.slice(1).join(separator).trim();
+                } else {
+                    // Fallback if separator is missing: heuristic to guess if it's code or just explanation
+                    if ((fullResponseText.includes('<html') || fullResponseText.includes('{') || fullResponseText.includes('function') || fullResponseText.includes('body {')) && fullResponseText.length > 100) {
+                        code = fullResponseText;
+                        explanation = "AI đã tạo mã nhưng không cung cấp giải thích riêng biệt. Vui lòng xem mã.";
+                    } else {
+                        explanation = fullResponseText;
+                        code = "// AI không tạo mã. Đây là phản hồi dạng văn bản.";
+                    }
                 }
                 
                 elements.aiExplanationBox.innerHTML = explanation.replace(/\n/g, '<br>');
                 monacoEditor.setValue(code);
-                elements.aiPromptInput.value = '';
+
+                // Auto-detect language based on common file extensions if filename is available
+                if (elements.fileNameInput.value.trim()) {
+                    let lang = 'plaintext';
+                    if (elements.fileNameInput.value.trim().endsWith('.html')) lang = 'html';
+                    else if (elements.fileNameInput.value.trim().endsWith('.css')) lang = 'css';
+                    else if (elements.fileNameInput.value.trim().endsWith('.js')) lang = 'javascript';
+                    else if (elements.fileNameInput.value.trim().endsWith('.json')) lang = 'json';
+                    else if (elements.fileNameInput.value.trim().endsWith('.md')) lang = 'markdown';
+                    monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
+                }
+
+
                 showMessage("AI đã cập nhật mã và cung cấp giải thích.");
+                addMessageToChatHistory('ai', "Đã tạo mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
 
             } catch (error) {
-                console.error("Error calling AI:", error);
-                showMessage(`Lỗi khi gọi AI: ${error.message}`, 5000);
-                chat = null;
+                console.error("Error generating code from AI:", error);
+                showMessage(`Lỗi khi tạo mã: ${error.message}`, 5000);
             } finally {
-                elements.aiButtonText.textContent = 'Gửi tới AI';
-                elements.aiButtonSpinner.classList.add('hidden');
-                elements.sendToAIButton.disabled = false;
+                elements.generateCodeButtonText.textContent = 'Tạo mã từ cuộc trò chuyện';
+                elements.generateCodeButtonSpinner.classList.add('hidden');
+                elements.generateCodeBtn.disabled = false;
+                elements.sendChatMessageBtn.disabled = false;
             }
         };
+
+        const clearChatHistory = () => {
+            chat = null; // Resets the chat history with the AI model
+            elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Cuộc trò chuyện đã được xóa. Bắt đầu trò chuyện mới.</p>';
+            showMessage("Đã xóa lịch sử trò chuyện.");
+        }
+
 
         // --- Action Functions ---
         const saveVersion = async () => {
@@ -780,8 +945,8 @@
                 monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
                 elements.fileNameInput.value = '';
                 elements.newVersionNotesInput.value = '';
-                elements.aiPromptInput.value = '';
-                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây...</p>';
+                elements.aiChatInput.value = ''; // Changed from aiPromptInput
+                elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
             } catch (error) {
                 console.error("Error saving version:", error);
                 showMessage('Lưu phiên bản thất bại.', 5000);
@@ -809,7 +974,6 @@
         };
         
         // --- Other functions (addNewApplication, modals, soft-delete, etc.) remain largely the same ---
-        // ... (The rest of the JS functions: addNewApplication, modals, softDelete, restore, etc. are omitted for brevity but are the same as before)
         const addNewApplication = async () => {
             if (!userId) return showMessage('Vui lòng đăng nhập.');
             const appName = elements.newAppNameInput.value.trim();
@@ -950,7 +1114,9 @@
         elements.confirmNewAppBtn.addEventListener('click', addNewApplication);
         elements.cancelNewAppBtn.addEventListener('click', hideAddNewAppModal);
         elements.saveVersionBtn.addEventListener('click', saveVersion);
-        elements.sendToAIButton.addEventListener('click', callAI);
+        elements.sendChatMessageBtn.addEventListener('click', sendChatMessage); // Changed
+        elements.generateCodeBtn.addEventListener('click', generateCodeFromAI); // New
+        elements.clearChatBtn.addEventListener('click', clearChatHistory); // New
         elements.copyBtn.addEventListener('click', copyCode);
         elements.previewBtn.addEventListener('click', showPreview);
         elements.closePreviewBtn.addEventListener('click', closePreview);
@@ -997,7 +1163,7 @@
         });
         elements.aiPromptSuggestionsContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button');
-            if (button) elements.aiPromptInput.value = button.dataset.prompt;
+            if (button) elements.aiChatInput.value = button.dataset.prompt; // Changed to aiChatInput
         });
 
     </script>
