@@ -185,6 +185,21 @@
             pointer-events: auto;
             transition: opacity 0.2s ease-out; /* Smooth transition */
         }
+
+        /* NEW: AI Chat History Modal styles */
+        #aiChatHistoryModalContent {
+            height: 80vh; /* Set a specific height for the scrollable content */
+            background-color: #f8f8f8; /* Light background for chat modal */
+            border: 1px solid #e0e0e0;
+            border-radius: 0.5rem;
+        }
+        #aiChatHistoryModal .ai-message,
+        #aiChatHistoryModal .user-message {
+            margin-left: auto; /* For user messages to align right */
+            margin-right: auto; /* For AI messages to align left */
+            max-width: 90%; /* Limit width to make it readable */
+        }
+
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -340,6 +355,11 @@
                     <p class="text-gray-500 text-center">Bắt đầu trò chuyện để trao đổi về mã của bạn.</p>
                 </div>
 
+                <!-- NEW: Expand Chat Button -->
+                <button id="expandChatBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-md mb-4 w-full text-sm">
+                    Mở rộng trò chuyện
+                </button>
+
                 <label for="aiChatInput" class="block text-gray-700 text-base font-bold mb-2">Nhập tin nhắn cho AI:</label>
                  <textarea id="aiChatInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" placeholder="e.g., 'Hãy thảo luận về cấu trúc của trang chủ'"></textarea>
                  
@@ -392,7 +412,7 @@
         <span id="messageContent"></span>
     </div>
 
-    <!-- Modals (Add App, Edit App, Preview, Deleted Versions, Diff) -->
+    <!-- Modals (Add App, Edit App, Preview, Deleted Versions, Diff, AI Chat History) -->
     <!-- Add New App Modal -->
     <div id="addNewAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
@@ -479,6 +499,19 @@
                 <span id="refineFeedbackButtonText">Gửi phản hồi</span>
                 <div id="refineFeedbackSpinner" class="spinner hidden w-4 h-4"></div>
             </button>
+        </div>
+    </div>
+
+    <!-- NEW: AI Chat History Modal -->
+    <div id="aiChatHistoryModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 class="text-xl font-semibold text-gray-800">Lịch sử trò chuyện AI</h3>
+                <button id="closeAiChatHistoryModalBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div id="aiChatHistoryModalContent" class="overflow-y-auto flex-grow p-4 text-sm leading-relaxed">
+                <!-- Chat history will be loaded here -->
+            </div>
         </div>
     </div>
 
@@ -610,6 +643,10 @@
             cancelRefineFeedbackBtn: document.getElementById('cancelRefineFeedbackBtn'), // NEW
             refineFeedbackButtonText: document.getElementById('refineFeedbackButtonText'), // NEW
             refineFeedbackSpinner: document.getElementById('refineFeedbackSpinner'), // NEW
+            expandChatBtn: document.getElementById('expandChatBtn'), // NEW
+            aiChatHistoryModal: document.getElementById('aiChatHistoryModal'), // NEW
+            aiChatHistoryModalContent: document.getElementById('aiChatHistoryModalContent'), // NEW
+            closeAiChatHistoryModalBtn: document.getElementById('closeAiChatHistoryModalBtn'), // NEW
         };
 
         const aiPromptSuggestions = [
@@ -760,6 +797,12 @@
 
             elements.aiChatHistoryBox.appendChild(messageDiv);
             elements.aiChatHistoryBox.scrollTop = elements.aiChatHistoryBox.scrollHeight; // Scroll to bottom
+
+            // Also update the modal chat history if it's open
+            if (!elements.aiChatHistoryModal.classList.contains('hidden')) {
+                elements.aiChatHistoryModalContent.appendChild(messageDiv.cloneNode(true)); // Clone to avoid moving element
+                elements.aiChatHistoryModalContent.scrollTop = elements.aiChatHistoryModalContent.scrollHeight;
+            }
         }
 
         // --- Firebase Auth ---
@@ -969,6 +1012,7 @@
 
                 // Load and display chat history
                 elements.aiChatHistoryBox.innerHTML = ''; // Clear existing chat history display
+                elements.aiChatHistoryModalContent.innerHTML = ''; // Clear modal chat history display
                 const loadedChatHistory = versionData?.chatHistory;
                 if (loadedChatHistory && loadedChatHistory.length > 0) {
                     chat = aiModel.startChat({ history: loadedChatHistory });
@@ -985,6 +1029,7 @@
                 } else {
                     chat = null; // Ensure chat is null if no history is loaded
                     elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Phiên bản này không có lịch sử trò chuyện. Bắt đầu trò chuyện mới.</p>';
+                    elements.aiChatHistoryModalContent.innerHTML = '<p class="text-gray-500 text-center">Phiên bản này không có lịch sử trò chuyện.</p>';
                 }
 
                 currentVersionFiles = await getFilesForVersion(appId, versionId);
@@ -1012,6 +1057,7 @@
                 elements.versionFilesList.innerHTML = '<div class="text-red-500">Lỗi khi tải tệp.</div>';
                 elements.aiExplanationBox.innerHTML = '<p class="text-red-500">Lỗi khi tải giải thích của AI.</p>';
                 elements.aiChatHistoryBox.innerHTML = '<p class="text-red-500">Lỗi khi tải lịch sử trò chuyện.</p>';
+                elements.aiChatHistoryModalContent.innerHTML = '<p class="text-red-500">Lỗi khi tải lịch sử trò chuyện.</p>';
             }
         };
 
@@ -1485,6 +1531,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         const clearChatHistory = () => {
             chat = null; // Resets the chat history with the AI model
             elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Cuộc trò chuyện đã được xóa. Bắt đầu trò chuyện mới.</p>';
+            elements.aiChatHistoryModalContent.innerHTML = '<p class="text-gray-500 text-center">Cuộc trò chuyện đã được xóa.</p>'; // Clear modal content too
             showMessage("Đã xóa lịch sử trò chuyện.");
         }
 
@@ -1572,6 +1619,17 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
             elements.previewFrame.srcdoc = codeToPreview;
             elements.previewModal.classList.remove('hidden');
             setPreviewMode('desktop'); 
+        };
+
+        // NEW: Functions for AI Chat History Modal
+        const showAiChatHistoryModal = () => {
+            elements.aiChatHistoryModalContent.innerHTML = elements.aiChatHistoryBox.innerHTML; // Copy content directly
+            elements.aiChatHistoryModal.classList.remove('hidden');
+            elements.aiChatHistoryModalContent.scrollTop = elements.aiChatHistoryModalContent.scrollHeight; // Scroll to bottom
+        };
+
+        const closeAiChatHistoryModal = () => {
+            elements.aiChatHistoryModal.classList.add('hidden');
         };
         
         // --- Other functions (addNewApplication, modals, soft-delete, etc.) remain largely the same ---
@@ -1756,6 +1814,10 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         elements.toggleRefineModeBtn.addEventListener('click', toggleRefineMode);
         elements.sendRefineFeedbackBtn.addEventListener('click', sendRefineFeedback);
         elements.cancelRefineFeedbackBtn.addEventListener('click', cancelRefineFeedback);
+
+        // NEW AI Chat History Modal listeners
+        elements.expandChatBtn.addEventListener('click', showAiChatHistoryModal);
+        elements.closeAiChatHistoryModalBtn.addEventListener('click', closeAiChatHistoryModal);
 
         elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
