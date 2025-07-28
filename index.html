@@ -209,7 +209,7 @@
     </div>
 
     <!-- Main App Content -->
-    <main id="mainAppContent" class="flex-grow container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 hidden">
+    <main id="mainAppContent" class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 hidden px-4 py-4">
         
         <!-- Left Column: Applications List -->
         <section class="bg-white p-6 rounded-lg shadow-md col-span-1 lg:col-span-2 flex flex-col border border-gray-200">
@@ -326,7 +326,7 @@
 
                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                     <button id="sendChatMessageBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
-                        <span id="chatButtonText">Gửi tin nhắn</span>
+                        <span id="chatButtonText">Thảo luận</span>
                         <div id="chatButtonSpinner" class="spinner hidden"></div>
                     </button>
                     <button id="generateCodeBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md w-full flex items-center justify-center gap-2">
@@ -914,7 +914,7 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
                 console.error("Error sending chat message:", error);
                 showMessage(`Lỗi khi gửi tin nhắn: ${error.message}`, 5000);
             } finally {
-                elements.chatButtonText.textContent = 'Gửi tin nhắn';
+                elements.chatButtonText.textContent = 'Thảo luận'; // Changed from 'Gửi tin nhắn'
                 elements.chatButtonSpinner.classList.add('hidden');
                 elements.sendChatMessageBtn.disabled = false;
             }
