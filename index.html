@@ -771,8 +771,7 @@
 
         const selectVersion = async (appId, versionId) => {
             currentVersionId = versionId;
-            clearChatHistory(); // Reset chat when version changes
-            elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Đã chọn phiên bản mới. Bắt đầu trò chuyện.</p>';
+            
             elements.aiChatInput.value = '';
             document.querySelectorAll('#versionsList > div').forEach(el => el.classList.remove('selected'));
             document.querySelector(`#versionsList [data-version-id="${versionId}"]`)?.classList.add('selected');
@@ -792,6 +791,27 @@
                 const aiExplanation = versionData?.aiExplanation || '<p class="text-gray-500">Phiên bản này không có giải thích từ AI.</p>';
                 elements.aiExplanationBox.innerHTML = marked.parse(aiExplanation);
                 lastAiExplanationMarkdown = aiExplanation; // Update lastAiExplanationMarkdown
+
+                // --- NEW: Load and display chat history ---
+                elements.aiChatHistoryBox.innerHTML = ''; // Clear existing chat history display
+                const loadedChatHistory = versionData?.chatHistory;
+                if (loadedChatHistory && loadedChatHistory.length > 0) {
+                    chat = aiModel.startChat({ history: loadedChatHistory });
+                    loadedChatHistory.forEach(msg => {
+                        // Only display if it's a user or AI message and has text content
+                        if ((msg.role === 'user' || msg.role === 'model') && msg.parts && msg.parts.length > 0 && msg.parts[0].text) {
+                            // Do not display the internal system prompt in the chat history box
+                            if (msg.role === 'user' && msg.parts[0].text === initialSystemPrompt) {
+                                return;
+                            }
+                            addMessageToChatHistory(msg.role, msg.parts[0].text);
+                        }
+                    });
+                } else {
+                    chat = null; // Ensure chat is null if no history is loaded
+                    elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Phiên bản này không có lịch sử trò chuyện. Bắt đầu trò chuyện mới.</p>';
+                }
+                // --- END NEW ---
 
                 currentVersionFiles = await getFilesForVersion(appId, versionId);
                 elements.versionFilesList.innerHTML = '';
@@ -813,6 +833,7 @@
                 console.error("Error loading version details:", error);
                 elements.versionFilesList.innerHTML = '<div class="text-red-500">Lỗi khi tải tệp.</div>';
                 elements.aiExplanationBox.innerHTML = '<p class="text-red-500">Lỗi khi tải giải thích của AI.</p>';
+                elements.aiChatHistoryBox.innerHTML = '<p class="text-red-500">Lỗi khi tải lịch sử trò chuyện.</p>';
             }
         };
 
@@ -834,11 +855,11 @@
                 
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                 
-                clearChatHistory(); // Reset chat for new file context
-                elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Tệp mới đã được tải. Bắt đầu cuộc trò chuyện mới về mã này.</p>';
+                // --- MODIFIED: Reset chat for new file context but handle initial greeting properly ---
+                // Removed: clearChatHistory(); 
+                // Removed: elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Tệp mới đã được tải. Bắt đầu cuộc trò chuyện mới về mã này.</p>';
                 // aiExplanationBox should retain the explanation of the selected version, not reset
-                // elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
-                elements.aiChatInput.value = '';
+                elements.aiChatInput.value = ''; // Keep clearing only the input box
             }
         };
 
@@ -872,14 +893,13 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
             try {
                 if (!chat) {
                     // Initialize chat with the system prompt and an initial greeting from AI
-                    chat = aiModel.startChat({
-                        history: [
-                            { role: "user", parts: [{ text: initialSystemPrompt }] }, // System instruction
-                            { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] } // AI's opening
-                        ]
-                    });
-                    // Display the AI's initial greeting in chat history
-                    addMessageToChatHistory('ai', "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!");
+                    const initialHistoryForNewChat = [
+                        { role: "user", parts: [{ text: initialSystemPrompt }] }, // System instruction
+                        { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] } // AI's opening
+                    ];
+                    chat = aiModel.startChat({ history: initialHistoryForNewChat });
+                    // Display only the AI's greeting, not the hidden system prompt
+                    addMessageToChatHistory('ai', initialHistoryForNewChat[1].parts[0].text);
                 }
 
                 // For every user message, provide the *current state* of the code explicitly.
@@ -904,14 +924,14 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
             if (!aiModel || !monacoEditor) return showMessage("Mô hình AI hoặc trình soạn thảo chưa sẵn sàng.");
             
             if (!chat) {
-                // If chat wasn't started, initialize it with system prompt
-                 chat = aiModel.startChat({
-                    history: [
-                        { role: "user", parts: [{ text: initialSystemPrompt }] },
-                        { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn." }] }
-                    ]
-                });
-                addMessageToChatHistory('ai', "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn.");
+                // Initialize chat with the system prompt and an initial greeting from AI
+                const initialHistoryForNewChat = [
+                    { role: "user", parts: [{ text: initialSystemPrompt }] }, // System instruction
+                    { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] } // AI's opening
+                ];
+                chat = aiModel.startChat({ history: initialHistoryForNewChat });
+                // Display only the AI's greeting, not the hidden system prompt
+                addMessageToChatHistory('ai', initialHistoryForNewChat[1].parts[0].text);
             }
 
             elements.generateCodeButtonText.textContent = 'Đang tạo mã...';
@@ -1016,13 +1036,22 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
 
             try {
                 const versionsSnapshot = await getDocs(query(getCollections.versions(currentAppId), where('deleted', '!=', true)));
+                
+                // --- NEW: Get and save chat history ---
+                const chatHistoryToSave = chat ? (await chat.getHistory()) : [
+                    { role: "user", parts: [{ text: initialSystemPrompt }] },
+                    { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] }
+                ];
+                // --- END NEW ---
+
                 const newVersionRef = await addDoc(getCollections.versions(currentAppId), {
                     versionIndex: versionsSnapshot.size + 1,
                     notes: newVersionNotes || 'Không có ghi chú',
                     timestamp: Date.now(),
                     parentVersionId: currentVersionId,
                     deleted: false,
-                    aiExplanation: lastAiExplanationMarkdown // NEW: Save the AI explanation
+                    aiExplanation: lastAiExplanationMarkdown, // Save the AI explanation
+                    chatHistory: chatHistoryToSave // NEW: Save the chat history
                 });
                 await addDoc(getCollections.files(currentAppId, newVersionRef.id), { filename, content });
                 
@@ -1030,9 +1059,10 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
                 elements.fileNameInput.value = '';
                 elements.newVersionNotesInput.value = '';
-                elements.aiChatInput.value = ''; // Changed from aiPromptInput
+                elements.aiChatInput.value = ''; 
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
-                lastAiExplanationMarkdown = ''; // NEW: Clear the stored AI explanation after saving
+                lastAiExplanationMarkdown = ''; // Clear the stored AI explanation after saving
+                // Note: chat object is NOT cleared here, user can continue chat on the newly saved version.
             } catch (error) {
                 console.error("Error saving version:", error);
                 showMessage('Lưu phiên bản thất bại.', 5000);
@@ -1144,6 +1174,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 currentVersionId = null;
                 if(monacoEditor) monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>'; // Reset explanation when current version is soft-deleted
+                clearChatHistory(); // Clear chat when current version is soft-deleted
             } catch (error) { console.error("Error soft deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
         };
         const showDeletedVersionsModal = () => {
@@ -1167,6 +1198,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                             <p class="font-medium">Phiên bản: ${version.versionIndex || 'N/A'}</p>
                             <p class="text-sm text-gray-500">${version.notes || ''}</p>
                             ${version.aiExplanation ? `<p class="text-xs text-gray-400 mt-1"><i>AI giải thích đã lưu</i></p>` : ''}
+                            ${version.chatHistory && version.chatHistory.length > 0 ? `<p class="text-xs text-gray-400 mt-1"><i>Lịch sử trò chuyện đã lưu</i></p>` : ''}
                         </div>
                         <div class="flex gap-2">
                             <button class="bg-indigo-600 text-white text-sm font-bold py-1 px-3 rounded-md restore-btn" data-version-id="${doc.id}">Khôi phục</button>
@@ -1202,9 +1234,9 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         elements.confirmNewAppBtn.addEventListener('click', addNewApplication);
         elements.cancelNewAppBtn.addEventListener('click', hideAddNewAppModal);
         elements.saveVersionBtn.addEventListener('click', saveVersion);
-        elements.sendChatMessageBtn.addEventListener('click', sendChatMessage); // Changed
-        elements.generateCodeBtn.addEventListener('click', generateCodeFromAI); // New
-        elements.clearChatBtn.addEventListener('click', clearChatHistory); // New
+        elements.sendChatMessageBtn.addEventListener('click', sendChatMessage); 
+        elements.generateCodeBtn.addEventListener('click', generateCodeFromAI);
+        elements.clearChatBtn.addEventListener('click', clearChatHistory);
         elements.copyBtn.addEventListener('click', copyCode);
         elements.previewBtn.addEventListener('click', showPreview);
         elements.closePreviewBtn.addEventListener('click', closePreview);
@@ -1251,7 +1283,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         });
         elements.aiPromptSuggestionsContainer.addEventListener('click', (e) => {
             const button = e.target.closest('button');
-            if (button) elements.aiChatInput.value = button.dataset.prompt; // Changed to aiChatInput
+            if (button) elements.aiChatInput.value = button.dataset.prompt; 
         });
 
     </script>
