@@ -175,10 +175,17 @@
             position: fixed;
             min-width: 300px;
             max-width: 400px;
-            top: 50%; /* Default to center vertically */
-            left: 50%; /* Default to center horizontally */
-            transform: translate(-50%, -50%); /* Center it */
             z-index: 55; /* Higher than other modals */
+            /* Add an initial small size for accurate offsetHeight calculation before positioning */
+            width: auto;
+            height: auto;
+            opacity: 0; /* Initially invisible */
+            pointer-events: none; /* Not clickable when invisible */
+        }
+        #refineFeedbackPopup.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transition: opacity 0.2s ease-out; /* Smooth transition */
         }
     </style>
 </head>
@@ -632,7 +639,7 @@
                 monacoDiffEditor.dispose();
                 monacoDiffEditor = null;
             }
-            // NEW: Also dispose selection listener if it exists
+            // Also dispose selection listener if it exists
             if (monacoSelectionDisposable) {
                 monacoSelectionDisposable.dispose();
                 monacoSelectionDisposable = null;
@@ -900,7 +907,8 @@
             if (isRefineModeActive) {
                 toggleRefineMode();
             }
-            elements.refineFeedbackPopup.classList.add('hidden'); // Hide popup
+            elements.refineFeedbackPopup.classList.add('hidden', 'translate-x-full'); // Hide popup
+            elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
         };
 
         const loadVersions = (appId) => {
@@ -941,6 +949,7 @@
                 toggleRefineMode();
             }
             elements.refineFeedbackPopup.classList.add('hidden'); // Hide popup
+            elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
 
             try {
                 const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
@@ -1028,6 +1037,7 @@
                     toggleRefineMode();
                 }
                 elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
             }
         };
 
@@ -1097,40 +1107,69 @@
         // NEW: Function to handle selection change in Monaco Editor for refinement
         const onMonacoSelectionChange = (e) => {
             if (!isRefineModeActive || !monacoEditor) {
-                elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.add('hidden', 'translate-x-full'); // Ensure it's hidden
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
                 return;
             }
 
             const selection = e.selection;
-            const selectedText = monacoEditor.getModel().getValueInRange(selection);
+            
+            // Check if it's an actual text range selection (start and end are different)
+            // This filters out simple cursor clicks.
+            if (selection.startLineNumber === selection.endLineNumber && selection.startColumn === selection.endColumn) {
+                elements.refineFeedbackPopup.classList.add('hidden'); // No actual selection (just cursor movement/click)
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+                currentRefinementSelection = null;
+                return;
+            }
 
-            if (selection.isEmpty() || selectedText.trim() === '') {
-                elements.refineFeedbackPopup.classList.add('hidden');
+            const selectedText = monacoEditor.getModel().getValueInRange(selection);
+            if (selectedText.trim() === '') {
+                elements.refineFeedbackPopup.classList.add('hidden'); // Only whitespace selected
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
                 currentRefinementSelection = null;
                 return;
             }
 
             currentRefinementSelection = selection;
 
-            // Position the popup near the selection
-            const editorDomNode = monacoEditor.getDomNode();
-            const editorRect = editorDomNode.getBoundingClientRect();
-            const editorScrollTop = monacoEditor.getScrollTop();
-            const editorScrollLeft = monacoEditor.getScrollLeft();
-
-            // Get position of the start of the selection relative to editor container
-            const startPosition = monacoEditor.getOffsetForColumnAndLine(selection.startLineNumber, selection.startColumn);
+            // Get the pixel coordinates of the end of the selection (better for pop-up below)
+            // This returns { top, left } relative to the editor's visible area.
+            const endPositionCoords = monacoEditor.getScrolledVisiblePosition(new monaco.Position(selection.endLineNumber, selection.endColumn));
             
-            let popupTop = editorRect.top + startPosition.top - editorScrollTop - elements.refineFeedbackPopup.offsetHeight - 10; // 10px above selection
-            let popupLeft = editorRect.left + startPosition.left - editorScrollLeft;
-
-            // Adjust if popup goes off screen (simple bounds check, can be more sophisticated)
-            if (popupTop < 0) {
-                popupTop = editorRect.top + startPosition.top - editorScrollTop + 20; // Show below if not enough space above
+            if (!endPositionCoords) {
+                // If the selected part is not currently visible in the editor viewport, hide popup
+                elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
+                currentRefinementSelection = null;
+                return;
             }
+
+            const editorDomNode = monacoEditor.getDomNode();
+            const editorRect = editorDomNode.getBoundingClientRect(); // Rect of the editor container in viewport
+
+            // Calculate popup position relative to viewport
+            // Position below the selection + padding
+            let popupTop = editorRect.top + endPositionCoords.top + monacoEditor.getOption(monaco.editor.EditorOption.lineHeight) + 10; // 10px below the line
+            let popupLeft = editorRect.left + endPositionCoords.left;
+
+            // Basic boundary adjustments (can be refined further for complex layouts)
+            // Adjust if it goes off bottom of the window
+            if (popupTop + elements.refineFeedbackPopup.offsetHeight > window.innerHeight - 20) {
+                // If not enough space below, try positioning above the start of the selection
+                const startPositionCoords = monacoEditor.getScrolledVisiblePosition(new monaco.Position(selection.startLineNumber, selection.startColumn));
+                if (startPositionCoords) {
+                    popupTop = editorRect.top + startPositionCoords.top - elements.refineFeedbackPopup.offsetHeight - 10;
+                } else {
+                    // Fallback to center if both above/below are problematic
+                    popupTop = window.innerHeight / 2 - elements.refineFeedbackPopup.offsetHeight / 2;
+                }
+            }
+            // Adjust if it goes off right side
             if (popupLeft + elements.refineFeedbackPopup.offsetWidth > window.innerWidth - 20) {
                 popupLeft = window.innerWidth - elements.refineFeedbackPopup.offsetWidth - 20;
             }
+            // Adjust if it goes off left side
             if (popupLeft < 20) {
                 popupLeft = 20;
             }
@@ -1138,6 +1177,7 @@
             elements.refineFeedbackPopup.style.top = `${popupTop}px`;
             elements.refineFeedbackPopup.style.left = `${popupLeft}px`;
             elements.refineFeedbackPopup.classList.remove('hidden');
+            elements.refineFeedbackPopup.classList.add('visible'); // Show popup with new class
             elements.refineFeedbackInput.focus();
         };
 
@@ -1156,17 +1196,20 @@
                 elements.toggleRefineModeBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
                 elements.toggleRefineModeBtn.classList.add('bg-green-600', 'hover:bg-green-700');
                 elements.toggleRefineModeBtn.textContent = 'Tắt Tinh chỉnh';
+                // Attach listener only when active
                 monacoSelectionDisposable = monacoEditor.onDidChangeCursorSelection(onMonacoSelectionChange);
                 showMessage("Chế độ tinh chỉnh đã được bật. Chọn đoạn mã để gửi phản hồi.", 4000);
             } else {
                 elements.toggleRefineModeBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
                 elements.toggleRefineModeBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
                 elements.toggleRefineModeBtn.textContent = 'Tinh chỉnh Code';
+                // Dispose listener when inactive
                 if (monacoSelectionDisposable) {
                     monacoSelectionDisposable.dispose();
                     monacoSelectionDisposable = null;
                 }
                 elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
                 currentRefinementSelection = null;
                 elements.refineFeedbackInput.value = '';
                 showMessage("Chế độ tinh chỉnh đã được tắt.", 3000);
@@ -1613,6 +1656,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                     toggleRefineMode();
                 }
                 elements.refineFeedbackPopup.classList.add('hidden');
+                elements.refineFeedbackPopup.classList.remove('visible'); // Hide popup with new class
             } catch (error) { console.error("Error soft deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
         };
         const showDeletedVersionsModal = () => {
