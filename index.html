@@ -363,6 +363,22 @@
                 <label for="aiChatInput" class="block text-gray-700 text-base font-bold mb-2">Nhập tin nhắn cho AI:</label>
                  <textarea id="aiChatInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" placeholder="e.g., 'Hãy thảo luận về cấu trúc của trang chủ'"></textarea>
                  
+                <!-- NEW: File Attachment Section -->
+                <div class="mt-2 mb-4 flex items-center gap-2">
+                    <button id="attachFileBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm text-sm flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd" />
+                        </svg>
+                        Đính kèm tệp
+                    </button>
+                    <input type="file" id="fileAttachmentInput" class="hidden" accept=".html,.css,.js,.txt,.json,.md">
+                    <span id="attachedFileInfo" class="hidden bg-blue-50 text-blue-800 text-xs py-1 px-2 rounded-full flex items-center gap-1">
+                        <span id="attachedFileNameDisplay"></span>
+                        <button id="removeAttachedFileBtn" class="text-blue-600 hover:text-blue-900 text-sm font-bold ml-1 -my-1 -mr-1 px-1 rounded-full">&times;</button>
+                    </span>
+                </div>
+                <!-- END NEW: File Attachment Section -->
+
                  <div class="mt-4">
                      <div class="flex items-center gap-2 mb-2">
                         <label class="block text-gray-700 text-sm font-bold">Gợi ý câu lệnh AI:</label>
@@ -571,6 +587,13 @@
 
         let lastAiExplanationMarkdown = ''; // New: To store the raw markdown explanation from AI
 
+        // NEW: File attachment variables
+        let attachedFileContent = null;
+        let attachedFileName = '';
+        const MAX_FILE_SIZE_KB = 200; // Limit to 200KB to manage context window
+        const ALLOWED_FILE_TYPES = ['text/html', 'text/css', 'application/javascript', 'text/plain', 'application/json', 'text/markdown'];
+
+
         const elements = {
             authSection: document.getElementById('authSection'),
             mainAppContent: document.getElementById('mainAppContent'),
@@ -647,6 +670,13 @@
             aiChatHistoryModal: document.getElementById('aiChatHistoryModal'), // NEW
             aiChatHistoryModalContent: document.getElementById('aiChatHistoryModalContent'), // NEW
             closeAiChatHistoryModalBtn: document.getElementById('closeAiChatHistoryModalBtn'), // NEW
+            
+            // NEW: File attachment elements
+            attachFileBtn: document.getElementById('attachFileBtn'),
+            fileAttachmentInput: document.getElementById('fileAttachmentInput'),
+            attachedFileInfo: document.getElementById('attachedFileInfo'),
+            attachedFileNameDisplay: document.getElementById('attachedFileNameDisplay'),
+            removeAttachedFileBtn: document.getElementById('removeAttachedFileBtn'),
         };
 
         const aiPromptSuggestions = [
@@ -929,6 +959,7 @@
             elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Đã chọn ứng dụng mới. Bắt đầu trò chuyện.</p>';
             currentVersionFiles.clear();
             lastAiExplanationMarkdown = ''; // Reset AI explanation state
+            removeAttachedFile(); // Clear attached file when application changes
 
             elements.currentAppNameSpan.textContent = appName;
             document.querySelectorAll('#applicationsList > div').forEach(el => el.classList.remove('selected'));
@@ -987,6 +1018,7 @@
             // Ensure single editor mode and clear content when a new version is selected
             createSingleEditor();
             elements.fileNameInput.value = ''; // Clear filename input
+            removeAttachedFile(); // Clear attached file when version changes
 
             // NEW: Ensure refine mode is turned off
             if (isRefineModeActive) {
@@ -1075,6 +1107,7 @@
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                 
                 elements.aiChatInput.value = ''; // Keep clearing only the input box
+                removeAttachedFile(); // Clear attached file when loading a new file into editor
 
                 // Check if current version has a parent to enable diff button
                 updateDiffButtonVisibility();
@@ -1373,6 +1406,16 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
             toggleRefineMode(); // Turn off refine mode and hide popup
         };
 
+        // NEW: Function to clear attached file data and UI
+        function removeAttachedFile() {
+            attachedFileContent = null;
+            attachedFileName = '';
+            elements.fileAttachmentInput.value = ''; // Clear the input field's selected file
+            elements.attachedFileInfo.classList.add('hidden');
+            elements.attachedFileNameDisplay.textContent = '';
+            // No message here as it's often called internally
+        }
+
         // --- AI Logic ---
         const initialSystemPrompt = `Bạn là một trợ lý lập trình chuyên sâu về HTML, CSS, và JavaScript.
 **Mục tiêu của bạn:**
@@ -1417,7 +1460,14 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
 
                 // For every user message, provide the *current state* of the code explicitly.
                 // This is crucial for the AI to always have the latest context.
-                const messageForAI = `Tệp hiện tại: ${currentFileName}\nMã nguồn hiện tại:\n\`\`\`\n${currentCode}\n\`\`\`\n\nTin nhắn của tôi: ${userMessage}`;
+                let messageForAI = `Tệp hiện tại: ${currentFileName}\nMã nguồn hiện tại:\n\`\`\`\n${currentCode}\n\`\`\`\n`;
+
+                // NEW: Include attached file content if present
+                if (attachedFileContent) {
+                    messageForAI += `\n\n[Tệp đính kèm: ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\`\n\n`;
+                }
+                
+                messageForAI += `Tin nhắn của tôi: ${userMessage}`;
                 
                 const result = await chat.sendMessage(messageForAI); // Send the augmented message
                 const aiResponseText = result.response.text();
@@ -1430,6 +1480,7 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
                 elements.chatButtonText.textContent = 'Thảo luận';
                 elements.chatButtonSpinner.classList.add('hidden');
                 elements.sendChatMessageBtn.disabled = false;
+                removeAttachedFile(); // NEW: Clear attached file after sending
             }
         };
 
@@ -1466,7 +1517,13 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
 \`\`\`
 ${currentCode}
 \`\`\`
-Vui lòng tạo ra mã nguồn hoàn chỉnh, đã được cập nhật hoặc mới dựa trên những gì chúng ta đã thảo luận.`;
+`;
+                // NEW: Include attached file content if present
+                if (attachedFileContent) {
+                    codeGenPrompt += `\n\n[Tệp đính kèm để tham khảo: ${attachedFileName}]\n\`\`\`\n${attachedFileContent}\n\`\`\`\n\n`;
+                }
+
+                codeGenPrompt += `Vui lòng tạo ra mã nguồn hoàn chỉnh, đã được cập nhật hoặc mới dựa trên những gì chúng ta đã thảo luận.`;
                 
                 if (selectedStyle) {
                     codeGenPrompt += ` Áp dụng phong cách "${selectedStyle}" cho mã nguồn và giải thích của bạn.`;
@@ -1525,6 +1582,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 elements.generateCodeButtonSpinner.classList.add('hidden');
                 elements.generateCodeBtn.disabled = false;
                 elements.sendChatMessageBtn.disabled = false;
+                removeAttachedFile(); // NEW: Clear attached file after sending
             }
         };
 
@@ -1578,6 +1636,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
                 lastAiExplanationMarkdown = ''; // Clear the stored AI explanation after saving
                 elements.viewDiffBtn.classList.add('hidden'); // Hide diff button after saving a new version (no parent yet)
+                removeAttachedFile(); // NEW: Clear attached file after saving a version
                 // Note: chat object is NOT cleared here, user can continue chat on the newly saved version.
             } catch (error) {
                 console.error("Error saving version:", error);
@@ -1720,6 +1779,7 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>'; // Reset explanation when current version is soft-deleted
                 clearChatHistory(); // Clear chat when current version is soft-deleted
                 elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
+                removeAttachedFile(); // NEW: Clear attached file when current version is soft-deleted
                 // NEW: Ensure refine mode is turned off
                 if (isRefineModeActive) {
                     toggleRefineMode();
@@ -1818,6 +1878,56 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         // NEW AI Chat History Modal listeners
         elements.expandChatBtn.addEventListener('click', showAiChatHistoryModal);
         elements.closeAiChatHistoryModalBtn.addEventListener('click', closeAiChatHistoryModal);
+
+        // NEW File Attachment Listeners
+        elements.attachFileBtn.addEventListener('click', () => {
+            elements.fileAttachmentInput.click(); // Trigger the hidden file input
+        });
+
+        elements.fileAttachmentInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                removeAttachedFile(); // No file selected, clear if any was attached before
+                return;
+            }
+
+            // Validate file size
+            if (file.size > MAX_FILE_SIZE_KB * 1024) {
+                showMessage(`Tệp quá lớn (${(file.size / 1024).toFixed(0)}KB). Vui lòng chọn tệp nhỏ hơn ${MAX_FILE_SIZE_KB}KB.`, 5000);
+                removeAttachedFile();
+                return;
+            }
+
+            // Validate file type by MIME and extension
+            const isAllowedMime = ALLOWED_FILE_TYPES.includes(file.type);
+            const isAllowedExtension = file.name.match(/\.(html|css|js|txt|json|md)$/i);
+
+            if (!isAllowedMime && !isAllowedExtension) {
+                showMessage(`Loại tệp không được hỗ trợ. Vui lòng chọn .html, .css, .js, .txt, .json, hoặc .md.`, 5000);
+                removeAttachedFile();
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                attachedFileContent = e.target.result;
+                attachedFileName = file.name;
+                elements.attachedFileNameDisplay.textContent = attachedFileName;
+                elements.attachedFileInfo.classList.remove('hidden');
+                showMessage(`Đã đính kèm tệp "${attachedFileName}".`, 3000);
+            };
+            reader.onerror = () => {
+                showMessage(`Lỗi khi đọc tệp "${file.name}".`, 5000);
+                removeAttachedFile();
+            };
+            reader.readAsText(file);
+        });
+
+        elements.removeAttachedFileBtn.addEventListener('click', () => {
+            removeAttachedFile();
+            showMessage("Đã xóa tệp đính kèm.", 3000);
+        });
+
 
         elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
