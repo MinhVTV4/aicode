@@ -271,9 +271,14 @@
             <div class="flex-grow flex flex-col mb-6 bg-white p-6 rounded-xl shadow-lg border border-gray-200">
                 <div class="flex justify-between items-center mb-4">
                     <label for="monacoEditorContainer" class="block text-gray-700 text-base font-bold mb-0">Trình soạn thảo (Monaco):</label>
-                    <button id="copyBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
-                        Sao chép mã
-                    </button>
+                    <div class="flex gap-2">
+                        <button id="viewDiffBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm hidden">
+                            Xem Diff
+                        </button>
+                        <button id="copyBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
+                            Sao chép mã
+                        </button>
+                    </div>
                 </div>
                 <!-- Monaco Editor container -->
                 <div id="monacoEditorContainer" class="rounded-lg shadow-inner"></div>
@@ -369,7 +374,7 @@
         <span id="messageContent"></span>
     </div>
 
-    <!-- Modals (Add App, Edit App, Preview, Deleted Versions) -->
+    <!-- Modals (Add App, Edit App, Preview, Deleted Versions, Diff) -->
     <!-- Add New App Modal -->
     <div id="addNewAppModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
@@ -433,6 +438,19 @@
         </div>
     </div>
 
+    <!-- Diff Modal -->
+    <div id="diffModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div id="diffModalContent" class="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                <h3 id="diffModalHeader" class="text-xl font-semibold text-gray-800">So sánh mã nguồn</h3>
+                <button id="closeDiffModalBtn" class="text-gray-500 hover:text-gray-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div class="flex-grow p-4">
+                <div id="monacoDiffEditorContainer" class="w-full h-full border border-gray-200 rounded-lg overflow-hidden shadow-inner"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Monaco Editor Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 
@@ -478,7 +496,11 @@
         let allApps = [];
         let chat = null; // AI chat instance
         let currentVersionFiles = new Map();
-        let monacoEditor; // Monaco Editor instance
+        
+        let monacoEditor = null;     // For single editor instance
+        let monacoDiffEditor = null; // For diff editor instance
+        let currentEditorType = 'single'; // 'single' or 'diff'
+
         let lastAiExplanationMarkdown = ''; // New: To store the raw markdown explanation from AI
 
         const elements = {
@@ -501,14 +523,14 @@
             editVersionNotesBtn: document.getElementById('editVersionNotesBtn'),
             saveEditedVersionNotesBtn: document.getElementById('saveEditedVersionNotesBtn'),
             newVersionNotesInput: document.getElementById('newVersionNotesInput'),
-            monacoEditorContainer: document.getElementById('monacoEditorContainer'), // New
-            aiChatInput: document.getElementById('aiChatInput'), // Changed from aiPromptInput
-            sendChatMessageBtn: document.getElementById('sendChatMessageBtn'), // Changed from sendToAIButton
+            monacoEditorContainer: document.getElementById('monacoEditorContainer'),
+            aiChatInput: document.getElementById('aiChatInput'),
+            sendChatMessageBtn: document.getElementById('sendChatMessageBtn'),
             chatButtonText: document.getElementById('chatButtonText'),
             chatButtonSpinner: document.getElementById('chatButtonSpinner'),
-            generateCodeBtn: document.getElementById('generateCodeBtn'), // New
-            generateCodeButtonText: document.getElementById('generateCodeButtonText'), // New
-            generateCodeButtonSpinner: document.getElementById('generateCodeButtonSpinner'), // New
+            generateCodeBtn: document.getElementById('generateCodeBtn'),
+            generateCodeButtonText: document.getElementById('generateCodeButtonText'),
+            generateCodeButtonSpinner: document.getElementById('generateCodeButtonSpinner'),
             aiExplanationBox: document.getElementById('aiExplanationBox'),
             aiPromptSuggestionsContainer: document.getElementById('aiPromptSuggestions'),
             toggleAiSuggestionsBtn: document.getElementById('toggleAiSuggestionsBtn'),
@@ -539,8 +561,13 @@
             deletedVersionsModal: document.getElementById('deletedVersionsModal'),
             deletedVersionsList: document.getElementById('deletedVersionsList'),
             closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
-            aiChatHistoryBox: document.getElementById('aiChatHistoryBox'), // New
-            clearChatBtn: document.getElementById('clearChatBtn'), // New
+            aiChatHistoryBox: document.getElementById('aiChatHistoryBox'),
+            clearChatBtn: document.getElementById('clearChatBtn'),
+            viewDiffBtn: document.getElementById('viewDiffBtn'), // New
+            diffModal: document.getElementById('diffModal'), // New
+            monacoDiffEditorContainer: document.getElementById('monacoDiffEditorContainer'), // New
+            closeDiffModalBtn: document.getElementById('closeDiffModalBtn'), // New
+            diffModalHeader: document.getElementById('diffModalHeader'), // New
         };
 
         const aiPromptSuggestions = [
@@ -549,21 +576,76 @@
             "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn."
         ];
 
-        // --- Monaco Editor Initialization ---
+        // --- Monaco Editor Management Functions ---
+
+        // Function to get language from filename
+        function getLanguageFromFilename(filename) {
+            if (filename.endsWith('.html')) return 'html';
+            if (filename.endsWith('.css')) return 'css';
+            if (filename.endsWith('.js')) return 'javascript';
+            if (filename.endsWith('.json')) return 'json';
+            if (filename.endsWith('.md')) return 'markdown';
+            return 'plaintext';
+        }
+
+        // Function to dispose existing editor instances
+        function disposeEditors() {
+            if (monacoEditor) {
+                monacoEditor.dispose();
+                monacoEditor = null;
+            }
+            if (monacoDiffEditor) {
+                monacoDiffEditor.dispose();
+                monacoDiffEditor = null;
+            }
+        }
+
+        // Function to create a single editor
+        function createSingleEditor(value = '// Chọn một tệp hoặc yêu cầu AI tạo mã mới...', filename = 'plaintext') {
+            disposeEditors(); // Ensure no other editor is active
+            currentEditorType = 'single';
+            monacoEditor = monaco.editor.create(elements.monacoEditorContainer, {
+                value: value,
+                language: getLanguageFromFilename(filename),
+                theme: 'vs-light',
+                automaticLayout: true,
+                fontSize: 14,
+                wordWrap: 'on',
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+            });
+        }
+
+        // Function to create a diff editor
+        function createDiffEditor(originalContent, modifiedContent, filename) {
+            disposeEditors(); // Ensure no other editor is active
+            currentEditorType = 'diff';
+            monacoDiffEditor = monaco.editor.createDiffEditor(elements.monacoDiffEditorContainer, {
+                enableSplitViewResizing: true,
+                renderSideBySide: true, // Default to side-by-side
+                readOnly: true, // Diff view should be read-only
+                theme: 'vs-light',
+                automaticLayout: true,
+                fontSize: 14,
+                wordWrap: 'on',
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+            });
+            const language = getLanguageFromFilename(filename);
+            const originalModel = monaco.editor.createModel(originalContent, language);
+            const modifiedModel = monaco.editor.createModel(modifiedContent, language);
+            monacoDiffEditor.setModel({
+                original: originalModel,
+                modified: modifiedModel
+            });
+        }
+
+        // Initial Monaco Editor setup on app load/login
         function initializeEditor() {
-            if (monacoEditor) return; // Already initialized
+            if (monacoEditor || monacoDiffEditor) return; // Already initialized
             require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
             require(['vs/editor/editor.main'], function() {
-                monacoEditor = monaco.editor.create(elements.monacoEditorContainer, {
-                    value: '// Chọn một tệp hoặc yêu cầu AI tạo mã mới...',
-                    language: 'plaintext',
-                    theme: 'vs-light',
-                    automaticLayout: true,
-                    fontSize: 14,
-                    wordWrap: 'on',
-                    minimap: { enabled: true },
-                    scrollBeyondLastLine: false,
-                });
+                createSingleEditor(); // Start with a single, empty editor
             });
         }
 
@@ -645,6 +727,7 @@
                 elements.authSection.classList.remove('hidden');
                 elements.mainAppContent.classList.add('hidden');
                 elements.mainAppContent.classList.remove('grid');
+                disposeEditors(); // Dispose editors on logout
             }
         });
 
@@ -689,6 +772,22 @@
                 currentId = versionData.parentVersionId || null;
             }
             return files;
+        };
+
+        // NEW: Function to get specific file content from a given version ID
+        const getFileContentForSpecificVersion = async (versionId, filename) => {
+            if (!userId || !currentAppId || !versionId || !filename) return null;
+            try {
+                const filesCollection = getCollections.files(currentAppId, versionId);
+                const q = query(filesCollection, where('filename', '==', filename));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                    return snapshot.docs[0].data().content;
+                }
+            } catch (error) {
+                console.error("Error fetching file content for specific version:", error);
+            }
+            return null;
         };
 
         // --- UI Rendering ---
@@ -738,7 +837,7 @@
             document.querySelector(`#applicationsList [data-app-id="${appId}"]`)?.classList.add('selected');
 
             loadVersions(appId);
-            if (monacoEditor) monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
+            createSingleEditor(); // Ensure a single editor is created
             elements.fileNameInput.value = '';
             elements.versionNotesInput.value = '';
             elements.versionNotesInput.disabled = true;
@@ -748,6 +847,7 @@
             elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Chọn một phiên bản để xem tệp.</div>';
             elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
             elements.aiChatInput.value = '';
+            elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
         };
 
         const loadVersions = (appId) => {
@@ -779,6 +879,10 @@
             document.querySelector(`#versionsList [data-version-id="${versionId}"]`)?.classList.add('selected');
             elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Đang tải tệp...</div>';
             
+            // Ensure single editor mode and clear content when a new version is selected
+            createSingleEditor();
+            elements.fileNameInput.value = ''; // Clear filename input
+
             try {
                 const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
                 const versionData = versionSnap.exists() ? versionSnap.data() : null;
@@ -794,7 +898,7 @@
                 elements.aiExplanationBox.innerHTML = marked.parse(aiExplanation);
                 lastAiExplanationMarkdown = aiExplanation; // Update lastAiExplanationMarkdown
 
-                // --- NEW: Load and display chat history ---
+                // Load and display chat history
                 elements.aiChatHistoryBox.innerHTML = ''; // Clear existing chat history display
                 const loadedChatHistory = versionData?.chatHistory;
                 if (loadedChatHistory && loadedChatHistory.length > 0) {
@@ -813,7 +917,6 @@
                     chat = null; // Ensure chat is null if no history is loaded
                     elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Phiên bản này không có lịch sử trò chuyện. Bắt đầu trò chuyện mới.</p>';
                 }
-                // --- END NEW ---
 
                 currentVersionFiles = await getFilesForVersion(appId, versionId);
                 elements.versionFilesList.innerHTML = '';
@@ -831,6 +934,10 @@
                 } else {
                     elements.versionFilesList.innerHTML = '<div class="text-gray-500 text-center py-2">Không tìm thấy tệp nào.</div>';
                 }
+                
+                // Update diff button visibility after version is selected and details are loaded
+                updateDiffButtonVisibility();
+
             } catch (error) {
                 console.error("Error loading version details:", error);
                 elements.versionFilesList.innerHTML = '<div class="text-red-500">Lỗi khi tải tệp.</div>';
@@ -840,29 +947,82 @@
         };
 
         const loadFileIntoEditor = (filename) => {
-            if (!monacoEditor) return;
+            // Ensure we are in single editor mode first
+            // This will dispose any active diff editor and create a new single editor
+            createSingleEditor(); 
+
             const fileData = currentVersionFiles.get(filename);
             if (fileData) {
                 elements.fileNameInput.value = fileData.filename;
                 monacoEditor.setValue(fileData.content);
-                
-                let lang = 'plaintext';
-                if (filename.endsWith('.html')) lang = 'html';
-                else if (filename.endsWith('.css')) lang = 'css';
-                else if (filename.endsWith('.js')) lang = 'javascript';
-                else if (filename.endsWith('.json')) lang = 'json';
-                else if (filename.endsWith('.md')) lang = 'markdown';
-                
-                monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
+                monaco.editor.setModelLanguage(monacoEditor.getModel(), getLanguageFromFilename(fileData.filename));
                 
                 showMessage(`Đã tải ${fileData.filename} vào trình soạn thảo.`);
                 
-                // --- MODIFIED: Reset chat for new file context but handle initial greeting properly ---
-                // Removed: clearChatHistory(); 
-                // Removed: elements.aiChatHistoryBox.innerHTML = '<p class="text-gray-500 text-center">Tệp mới đã được tải. Bắt đầu cuộc trò chuyện mới về mã này.</p>';
-                // aiExplanationBox should retain the explanation of the selected version, not reset
                 elements.aiChatInput.value = ''; // Keep clearing only the input box
+
+                // Check if current version has a parent to enable diff button
+                updateDiffButtonVisibility();
             }
+        };
+
+        // NEW: Function to toggle visibility of the Diff button
+        const updateDiffButtonVisibility = async () => {
+            if (!currentVersionId || !elements.fileNameInput.value || !currentAppId) {
+                elements.viewDiffBtn.classList.add('hidden');
+                return;
+            }
+            try {
+                const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`));
+                if (versionSnap.exists() && versionSnap.data().parentVersionId) {
+                    elements.viewDiffBtn.classList.remove('hidden');
+                } else {
+                    elements.viewDiffBtn.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error("Error checking parent version:", error);
+                elements.viewDiffBtn.classList.add('hidden');
+            }
+        };
+
+        // NEW: Function to handle viewing diff with parent version
+        const viewDiffWithParent = async () => {
+            if (!currentAppId || !currentVersionId || !elements.fileNameInput.value) {
+                return showMessage("Vui lòng chọn một phiên bản và một tệp để xem diff.", 3000);
+            }
+
+            const currentFileName = elements.fileNameInput.value;
+            const currentFileContent = monacoEditor.getValue(); // Get content from the current single editor
+            
+            // Get parent version ID
+            const currentVersionDoc = await getDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`));
+            if (!currentVersionDoc.exists()) {
+                return showMessage("Phiên bản hiện tại không tồn tại.", 3000);
+            }
+            const currentVersionData = currentVersionDoc.data();
+            const parentVersionId = currentVersionData.parentVersionId;
+
+            if (!parentVersionId) {
+                return showMessage("Phiên bản đã chọn không có phiên bản cha để so sánh.", 3000);
+            }
+
+            // Get parent version's details for display in header
+            const parentVersionDoc = await getDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${parentVersionId}`));
+            const parentVersionData = parentVersionDoc.exists() ? parentVersionDoc.data() : {};
+            const parentVersionNotes = parentVersionData.notes || 'Không ghi chú';
+            const parentVersionIndex = parentVersionData.versionIndex || 'N/A';
+
+            // Fetch the content of the same file from the parent version
+            const parentFileContent = await getFileContentForSpecificVersion(parentVersionId, currentFileName);
+
+            if (parentFileContent === null) {
+                return showMessage(`Không tìm thấy tệp "${currentFileName}" trong phiên bản cha để so sánh.`, 5000);
+            }
+
+            // Set up and show the diff editor
+            elements.diffModalHeader.textContent = `So sánh: ${currentFileName} (Phiên bản ${parentVersionIndex} - "${parentVersionNotes}") với phiên bản hiện tại`;
+            createDiffEditor(parentFileContent, currentFileContent, currentFileName);
+            elements.diffModal.classList.remove('hidden');
         };
 
         // --- AI Logic ---
@@ -882,7 +1042,8 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
             if (!userMessage) return showMessage("Vui lòng nhập tin nhắn.");
 
             // Get current editor content and file name for context
-            const currentCode = monacoEditor ? monacoEditor.getValue() : "Trình soạn thảo hiện đang trống hoặc không sẵn sàng.";
+            // Ensure we get value from the active editor (monacoEditor is only active in 'single' mode)
+            const currentCode = monacoEditor ? monacoEditor.getValue() : "// Trình soạn thảo hiện đang trống hoặc không sẵn sàng.";
             const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
 
             addMessageToChatHistory('user', userMessage); // Display user's original message
@@ -916,7 +1077,7 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
                 console.error("Error sending chat message:", error);
                 showMessage(`Lỗi khi gửi tin nhắn: ${error.message}`, 5000);
             } finally {
-                elements.chatButtonText.textContent = 'Thảo luận'; // Changed from 'Gửi tin nhắn'
+                elements.chatButtonText.textContent = 'Thảo luận';
                 elements.chatButtonSpinner.classList.add('hidden');
                 elements.sendChatMessageBtn.disabled = false;
             }
@@ -925,6 +1086,10 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
         const generateCodeFromAI = async () => {
             if (!aiModel || !monacoEditor) return showMessage("Mô hình AI hoặc trình soạn thảo chưa sẵn sàng.");
             
+            if (currentEditorType === 'diff') {
+                return showMessage("Vui lòng đóng chế độ xem diff trước khi tạo mã mới.", 5000);
+            }
+
             if (!chat) {
                 // Initialize chat with the system prompt and an initial greeting from AI
                 const initialHistoryForNewChat = [
@@ -996,15 +1161,8 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
 
                 // Auto-detect language based on common file extensions if filename is available
                 if (elements.fileNameInput.value.trim()) {
-                    let lang = 'plaintext';
-                    if (elements.fileNameInput.value.trim().endsWith('.html')) lang = 'html';
-                    else if (elements.fileNameInput.value.trim().endsWith('.css')) lang = 'css';
-                    else if (elements.fileNameInput.value.trim().endsWith('.js')) lang = 'javascript';
-                    else if (elements.fileNameInput.value.trim().endsWith('.json')) lang = 'json';
-                    else if (elements.fileNameInput.value.trim().endsWith('.md')) lang = 'markdown';
-                    monaco.editor.setModelLanguage(monacoEditor.getModel(), lang);
+                    monaco.editor.setModelLanguage(monacoEditor.getModel(), getLanguageFromFilename(elements.fileNameInput.value.trim()));
                 }
-
 
                 showMessage("AI đã cập nhật mã và cung cấp giải thích.");
                 addMessageToChatHistory('ai', "Đã tạo mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
@@ -1029,6 +1187,11 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
 
         // --- Action Functions ---
         const saveVersion = async () => {
+            // Prevent saving if in diff mode
+            if (currentEditorType === 'diff') {
+                return showMessage("Vui lòng đóng chế độ xem diff trước khi lưu phiên bản mới.", 5000);
+            }
+
             if (!userId || !currentAppId || !monacoEditor) return showMessage('Vui lòng chọn ứng dụng và đảm bảo trình soạn thảo sẵn sàng.');
             const filename = elements.fileNameInput.value.trim();
             const content = monacoEditor.getValue();
@@ -1039,12 +1202,11 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
             try {
                 const versionsSnapshot = await getDocs(query(getCollections.versions(currentAppId), where('deleted', '!=', true)));
                 
-                // --- NEW: Get and save chat history ---
+                // Get and save chat history
                 const chatHistoryToSave = chat ? (await chat.getHistory()) : [
                     { role: "user", parts: [{ text: initialSystemPrompt }] },
                     { role: "model", parts: [{ text: "Chào bạn! Tôi sẵn sàng hỗ trợ về mã nguồn của bạn. Hãy cho tôi biết bạn muốn thảo luận gì!" }] }
                 ];
-                // --- END NEW ---
 
                 const newVersionRef = await addDoc(getCollections.versions(currentAppId), {
                     versionIndex: versionsSnapshot.size + 1,
@@ -1053,17 +1215,18 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                     parentVersionId: currentVersionId,
                     deleted: false,
                     aiExplanation: lastAiExplanationMarkdown, // Save the AI explanation
-                    chatHistory: chatHistoryToSave // NEW: Save the chat history
+                    chatHistory: chatHistoryToSave // Save the chat history
                 });
                 await addDoc(getCollections.files(currentAppId, newVersionRef.id), { filename, content });
                 
                 showMessage('Phiên bản mới đã được lưu thành công!');
-                monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
+                createSingleEditor(); // Reset editor to empty single view
                 elements.fileNameInput.value = '';
                 elements.newVersionNotesInput.value = '';
                 elements.aiChatInput.value = ''; 
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
                 lastAiExplanationMarkdown = ''; // Clear the stored AI explanation after saving
+                elements.viewDiffBtn.classList.add('hidden'); // Hide diff button after saving a new version (no parent yet)
                 // Note: chat object is NOT cleared here, user can continue chat on the newly saved version.
             } catch (error) {
                 console.error("Error saving version:", error);
@@ -1072,17 +1235,33 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         };
 
         const copyCode = () => {
-            if (!monacoEditor) return;
-            const codeToCopy = monacoEditor.getValue();
-            if (!codeToCopy) return showMessage("Không có mã để sao chép.", 3000);
-            navigator.clipboard.writeText(codeToCopy).then(() => {
-                showMessage('Mã đã được sao chép vào clipboard!');
-            }, () => {
-                showMessage('Sao chép thất bại.', 3000);
-            });
+            if (currentEditorType === 'diff') {
+                // If in diff mode, copy the modified (right) side
+                if (monacoDiffEditor) {
+                    const modifiedContent = monacoDiffEditor.getModel().modified.getValue();
+                    if (!modifiedContent) return showMessage("Không có mã để sao chép.", 3000);
+                    navigator.clipboard.writeText(modifiedContent).then(() => {
+                        showMessage('Mã đã được sao chép từ khung Modified!');
+                    }, () => {
+                        showMessage('Sao chép thất bại.', 3000);
+                    });
+                }
+            } else {
+                if (!monacoEditor) return;
+                const codeToCopy = monacoEditor.getValue();
+                if (!codeToCopy) return showMessage("Không có mã để sao chép.", 3000);
+                navigator.clipboard.writeText(codeToCopy).then(() => {
+                    showMessage('Mã đã được sao chép vào clipboard!');
+                }, () => {
+                    showMessage('Sao chép thất bại.', 3000);
+                });
+            }
         };
 
         const showPreview = () => {
+            if (currentEditorType === 'diff') {
+                 return showMessage("Vui lòng đóng chế độ xem diff trước khi xem trước mã.", 5000);
+            }
             if (!monacoEditor) return;
             const codeToPreview = monacoEditor.getValue();
             if (!codeToPreview) return showMessage("Không có mã để xem trước.", 3000);
@@ -1174,9 +1353,11 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 await updateDoc(doc(db, `users/${userId}/applications/${currentAppId}/versions/${currentVersionId}`), { deleted: true, deletedAt: serverTimestamp() });
                 showMessage('Phiên bản đã được chuyển vào thùng rác!');
                 currentVersionId = null;
-                if(monacoEditor) monacoEditor.setValue('// Chọn một tệp hoặc yêu cầu AI tạo mã mới...');
+                createSingleEditor(); // Reset editor to empty single view
+                elements.fileNameInput.value = ''; // Clear filename
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>'; // Reset explanation when current version is soft-deleted
                 clearChatHistory(); // Clear chat when current version is soft-deleted
+                elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
             } catch (error) { console.error("Error soft deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
         };
         const showDeletedVersionsModal = () => {
@@ -1252,6 +1433,17 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         elements.confirmEditAppBtn.addEventListener('click', saveEditedApplicationName);
         elements.cancelEditAppBtn.addEventListener('click', hideEditAppModal);
         elements.toggleAiSuggestionsBtn.addEventListener('click', toggleAiSuggestions);
+        elements.viewDiffBtn.addEventListener('click', viewDiffWithParent); // New Diff Button Listener
+        elements.closeDiffModalBtn.addEventListener('click', () => { // New Diff Modal Close Listener
+            elements.diffModal.classList.add('hidden');
+            // After closing diff, return to single editor mode with the current file
+            const currentFileName = elements.fileNameInput.value;
+            const currentFileContent = monacoEditor ? monacoEditor.getValue() : ''; // Get current content before disposing
+            createSingleEditor(currentFileContent, currentFileName);
+            // Ensure layout is updated if editor was in hidden modal
+            if (monacoEditor) monacoEditor.layout(); 
+        });
+
 
         elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
