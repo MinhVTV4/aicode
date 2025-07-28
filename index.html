@@ -11,6 +11,9 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- marked.js CDN for Markdown parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+
     <style>
         /* CSS tùy chỉnh để giao diện đẹp hơn và theo Material Design */
         body {
@@ -100,6 +103,60 @@
             margin-bottom: 0.5rem;
             word-wrap: break-word;
         }
+        .ai-message strong, .ai-message b {
+            font-weight: 700; /* Tailwind font-bold */
+        }
+        .ai-message em, .ai-message i {
+            font-style: italic;
+        }
+        .ai-message pre {
+            background-color: #263238; /* Darker background for code */
+            color: #e0e0e0;
+            padding: 0.75rem;
+            border-radius: 0.375rem; /* rounded-md */
+            overflow-x: auto;
+            margin-top: 0.5rem;
+            font-family: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace; /* Monospace font */
+        }
+        .ai-message code {
+            font-family: 'Fira Code', 'Monaco', 'Consolas', 'Courier New', monospace;
+            background-color: #cfd8dc; /* Light grey for inline code */
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem; /* text-sm */
+        }
+        .ai-message pre code {
+             background-color: transparent; /* Remove background for code inside pre */
+             padding: 0;
+             border-radius: 0;
+        }
+        .ai-message ul, .ai-message ol {
+            margin-left: 1.25rem; /* pl-5 */
+            padding-left: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .ai-message ul {
+            list-style-type: disc;
+        }
+        .ai-message ol {
+            list-style-type: decimal;
+        }
+        .ai-message li {
+            margin-bottom: 0.25rem;
+        }
+        .ai-message h1, .ai-message h2, .ai-message h3, .ai-message h4, .ai-message h5, .ai-message h6 {
+            font-weight: 600; /* font-semibold */
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .ai-message h1 { font-size: 1.5rem; /* text-2xl */ }
+        .ai-message h2 { font-size: 1.25rem; /* text-xl */ }
+        .ai-message h3 { font-size: 1.125rem; /* text-lg */ }
+        .ai-message p {
+            margin-bottom: 0.5rem;
+        }
+
+
         .user-message {
             background-color: #e8eaf6; /* Light indigo for user */
             border-left: 4px solid #3f51b5;
@@ -546,7 +603,21 @@
         function addMessageToChatHistory(sender, message) {
             const messageDiv = document.createElement('div');
             messageDiv.className = sender === 'user' ? 'user-message' : 'ai-message';
-            messageDiv.innerHTML = `<strong>${sender === 'user' ? 'Bạn' : 'AI'}:</strong> <span>${message.replace(/\n/g, '<br>')}</span>`;
+            const contentSpan = document.createElement('span');
+
+            if (sender === 'ai') {
+                // Use marked.js to parse Markdown from AI messages
+                contentSpan.innerHTML = marked.parse(message);
+            } else {
+                contentSpan.innerHTML = message.replace(/\n/g, '<br>');
+            }
+            
+            // Prepend sender label to the content span
+            const senderLabel = document.createElement('strong');
+            senderLabel.textContent = sender === 'user' ? 'Bạn:' : 'AI:';
+            messageDiv.appendChild(senderLabel);
+            messageDiv.appendChild(contentSpan); // Append content after sender label
+
             elements.aiChatHistoryBox.appendChild(messageDiv);
             elements.aiChatHistoryBox.scrollTop = elements.aiChatHistoryBox.scrollHeight; // Scroll to bottom
         }
@@ -856,7 +927,7 @@ Vui lòng tạo ra mã nguồn hoàn chỉnh, đã được cập nhật hoặc 
 
                 codeGenPrompt += `
 Hãy tuân thủ định dạng sau:
-Đầu tiên, giải thích ngắn gọn những thay đổi bạn đã thực hiện.
+Đầu tiên, giải thích chi tiết và kỹ lưỡng những thay đổi bạn đã thực hiện, sử dụng định dạng Markdown (tiêu đề, danh sách, đoạn mã) để trình bày rõ ràng.
 Sau đó, thêm dòng phân cách '---CODE---'.
 Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).`;
                 
@@ -885,7 +956,8 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                     }
                 }
                 
-                elements.aiExplanationBox.innerHTML = explanation.replace(/\n/g, '<br>');
+                // Use marked.parse for aiExplanationBox
+                elements.aiExplanationBox.innerHTML = marked.parse(explanation); 
                 monacoEditor.setValue(code);
 
                 // Auto-detect language based on common file extensions if filename is available
