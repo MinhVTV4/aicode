@@ -170,6 +170,16 @@
             display: block;
             text-align: left; /* Content remains left-aligned inside */
         }
+        /* New style for refinement feedback popup */
+        #refineFeedbackPopup {
+            position: fixed;
+            min-width: 300px;
+            max-width: 400px;
+            top: 50%; /* Default to center vertically */
+            left: 50%; /* Default to center horizontally */
+            transform: translate(-50%, -50%); /* Center it */
+            z-index: 55; /* Higher than other modals */
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -274,6 +284,9 @@
                     <div class="flex gap-2">
                         <button id="viewDiffBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm hidden">
                             Xem Diff
+                        </button>
+                        <button id="toggleRefineModeBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
+                            Tinh chỉnh Code
                         </button>
                         <button id="copyBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg shadow-md flex-shrink-0 text-sm">
                             Sao chép mã
@@ -451,6 +464,17 @@
         </div>
     </div>
 
+    <!-- Refine Feedback Popup -->
+    <div id="refineFeedbackPopup" class="fixed hidden z-50 p-4 bg-white rounded-lg shadow-xl border border-gray-200">
+        <p class="font-semibold text-gray-800 mb-2">Phản hồi cho đoạn mã được chọn:</p>
+        <textarea id="refineFeedbackInput" rows="3" class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500 mb-2" placeholder="VD: 'Thay đổi màu nút này thành xanh lá cây'"></textarea>
+        <div class="flex justify-end gap-2">
+            <button id="cancelRefineFeedbackBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-1.5 px-3 rounded-lg text-sm">Hủy</button>
+            <button id="sendRefineFeedbackBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg text-sm">Gửi phản hồi</button>
+        </div>
+        <div id="refineFeedbackSpinner" class="spinner hidden mt-2 mx-auto"></div>
+    </div>
+
     <!-- Monaco Editor Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 
@@ -499,7 +523,11 @@
         
         let monacoEditor = null;     // For single editor instance
         let monacoDiffEditor = null; // For diff editor instance
-        let currentEditorType = 'single'; // 'single' or 'diff'
+        let currentEditorType = 'single'; // 'single', 'diff', or 'refine'
+
+        let isRefineModeActive = false; // NEW: Track if refine mode is active
+        let currentRefinementSelection = null; // NEW: Store the current selection for refinement
+        let monacoSelectionDisposable = null; // NEW: Disposable for the selection listener
 
         let lastAiExplanationMarkdown = ''; // New: To store the raw markdown explanation from AI
 
@@ -563,11 +591,17 @@
             closeDeletedVersionsModalBtn: document.getElementById('closeDeletedVersionsModalBtn'),
             aiChatHistoryBox: document.getElementById('aiChatHistoryBox'),
             clearChatBtn: document.getElementById('clearChatBtn'),
-            viewDiffBtn: document.getElementById('viewDiffBtn'), // New
-            diffModal: document.getElementById('diffModal'), // New
-            monacoDiffEditorContainer: document.getElementById('monacoDiffEditorContainer'), // New
-            closeDiffModalBtn: document.getElementById('closeDiffModalBtn'), // New
-            diffModalHeader: document.getElementById('diffModalHeader'), // New
+            viewDiffBtn: document.getElementById('viewDiffBtn'),
+            diffModal: document.getElementById('diffModal'),
+            monacoDiffEditorContainer: document.getElementById('monacoDiffEditorContainer'),
+            closeDiffModalBtn: document.getElementById('closeDiffModalBtn'),
+            diffModalHeader: document.getElementById('diffModalHeader'),
+            toggleRefineModeBtn: document.getElementById('toggleRefineModeBtn'), // NEW
+            refineFeedbackPopup: document.getElementById('refineFeedbackPopup'), // NEW
+            refineFeedbackInput: document.getElementById('refineFeedbackInput'), // NEW
+            sendRefineFeedbackBtn: document.getElementById('sendRefineFeedbackBtn'), // NEW
+            cancelRefineFeedbackBtn: document.getElementById('cancelRefineFeedbackBtn'), // NEW
+            refineFeedbackSpinner: document.getElementById('refineFeedbackSpinner'), // NEW
         };
 
         const aiPromptSuggestions = [
@@ -598,6 +632,11 @@
                 monacoDiffEditor.dispose();
                 monacoDiffEditor = null;
             }
+            // NEW: Also dispose selection listener if it exists
+            if (monacoSelectionDisposable) {
+                monacoSelectionDisposable.dispose();
+                monacoSelectionDisposable = null;
+            }
         }
 
         // Function to create a single editor
@@ -614,6 +653,10 @@
                 minimap: { enabled: true },
                 scrollBeyondLastLine: false,
             });
+            // Ensure refine mode is off and its listener is disabled when switching to single editor
+            if (isRefineModeActive) {
+                toggleRefineMode(); // This will disable the listener
+            }
         }
 
         // Function to create a diff editor
@@ -638,6 +681,10 @@
                 original: originalModel,
                 modified: modifiedModel
             });
+            // Ensure refine mode is off and its listener is disabled when switching to diff editor
+            if (isRefineModeActive) {
+                toggleRefineMode();
+            }
         }
 
         // Initial Monaco Editor setup on app load/login
@@ -774,7 +821,7 @@
             return files;
         };
 
-        // NEW: Function to get specific file content from a given version ID
+        // Function to get specific file content from a given version ID
         const getFileContentForSpecificVersion = async (versionId, filename) => {
             if (!userId || !currentAppId || !versionId || !filename) return null;
             try {
@@ -848,6 +895,12 @@
             elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>';
             elements.aiChatInput.value = '';
             elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
+            
+            // NEW: Ensure refine mode is turned off
+            if (isRefineModeActive) {
+                toggleRefineMode();
+            }
+            elements.refineFeedbackPopup.classList.add('hidden'); // Hide popup
         };
 
         const loadVersions = (appId) => {
@@ -882,6 +935,12 @@
             // Ensure single editor mode and clear content when a new version is selected
             createSingleEditor();
             elements.fileNameInput.value = ''; // Clear filename input
+
+            // NEW: Ensure refine mode is turned off
+            if (isRefineModeActive) {
+                toggleRefineMode();
+            }
+            elements.refineFeedbackPopup.classList.add('hidden'); // Hide popup
 
             try {
                 const versionSnap = await getDoc(doc(db, `users/${userId}/applications/${appId}/versions/${versionId}`));
@@ -963,10 +1022,16 @@
 
                 // Check if current version has a parent to enable diff button
                 updateDiffButtonVisibility();
+
+                // NEW: Ensure refine mode is turned off and popup is hidden when a new file is loaded
+                if (isRefineModeActive) {
+                    toggleRefineMode();
+                }
+                elements.refineFeedbackPopup.classList.add('hidden');
             }
         };
 
-        // NEW: Function to toggle visibility of the Diff button
+        // Function to toggle visibility of the Diff button
         const updateDiffButtonVisibility = async () => {
             if (!currentVersionId || !elements.fileNameInput.value || !currentAppId) {
                 elements.viewDiffBtn.classList.add('hidden');
@@ -985,10 +1050,14 @@
             }
         };
 
-        // NEW: Function to handle viewing diff with parent version
+        // Function to handle viewing diff with parent version
         const viewDiffWithParent = async () => {
             if (!currentAppId || !currentVersionId || !elements.fileNameInput.value) {
                 return showMessage("Vui lòng chọn một phiên bản và một tệp để xem diff.", 3000);
+            }
+            // NEW: Prevent viewing diff if refine mode is active
+            if (isRefineModeActive) {
+                return showMessage("Vui lòng tắt chế độ tinh chỉnh trước khi xem diff.", 5000);
             }
 
             const currentFileName = elements.fileNameInput.value;
@@ -1025,6 +1094,185 @@
             elements.diffModal.classList.remove('hidden');
         };
 
+        // NEW: Function to handle selection change in Monaco Editor for refinement
+        const onMonacoSelectionChange = (e) => {
+            if (!isRefineModeActive || !monacoEditor) {
+                elements.refineFeedbackPopup.classList.add('hidden');
+                return;
+            }
+
+            const selection = e.selection;
+            const selectedText = monacoEditor.getModel().getValueInRange(selection);
+
+            if (selection.isEmpty() || selectedText.trim() === '') {
+                elements.refineFeedbackPopup.classList.add('hidden');
+                currentRefinementSelection = null;
+                return;
+            }
+
+            currentRefinementSelection = selection;
+
+            // Position the popup near the selection
+            const editorDomNode = monacoEditor.getDomNode();
+            const editorRect = editorDomNode.getBoundingClientRect();
+            const editorScrollTop = monacoEditor.getScrollTop();
+            const editorScrollLeft = monacoEditor.getScrollLeft();
+
+            // Get position of the start of the selection relative to editor container
+            const startPosition = monacoEditor.getOffsetForColumnAndLine(selection.startLineNumber, selection.startColumn);
+            
+            let popupTop = editorRect.top + startPosition.top - editorScrollTop - elements.refineFeedbackPopup.offsetHeight - 10; // 10px above selection
+            let popupLeft = editorRect.left + startPosition.left - editorScrollLeft;
+
+            // Adjust if popup goes off screen (simple bounds check, can be more sophisticated)
+            if (popupTop < 0) {
+                popupTop = editorRect.top + startPosition.top - editorScrollTop + 20; // Show below if not enough space above
+            }
+            if (popupLeft + elements.refineFeedbackPopup.offsetWidth > window.innerWidth - 20) {
+                popupLeft = window.innerWidth - elements.refineFeedbackPopup.offsetWidth - 20;
+            }
+            if (popupLeft < 20) {
+                popupLeft = 20;
+            }
+
+            elements.refineFeedbackPopup.style.top = `${popupTop}px`;
+            elements.refineFeedbackPopup.style.left = `${popupLeft}px`;
+            elements.refineFeedbackPopup.classList.remove('hidden');
+            elements.refineFeedbackInput.focus();
+        };
+
+        // NEW: Toggle Refine Mode
+        const toggleRefineMode = () => {
+            if (!monacoEditor) {
+                return showMessage("Trình soạn thảo chưa sẵn sàng.", 3000);
+            }
+            if (currentEditorType === 'diff') {
+                return showMessage("Vui lòng đóng chế độ xem diff trước khi bật chế độ tinh chỉnh.", 5000);
+            }
+
+            isRefineModeActive = !isRefineModeActive;
+
+            if (isRefineModeActive) {
+                elements.toggleRefineModeBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+                elements.toggleRefineModeBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                elements.toggleRefineModeBtn.textContent = 'Tắt Tinh chỉnh';
+                monacoSelectionDisposable = monacoEditor.onDidChangeCursorSelection(onMonacoSelectionChange);
+                showMessage("Chế độ tinh chỉnh đã được bật. Chọn đoạn mã để gửi phản hồi.", 4000);
+            } else {
+                elements.toggleRefineModeBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                elements.toggleRefineModeBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+                elements.toggleRefineModeBtn.textContent = 'Tinh chỉnh Code';
+                if (monacoSelectionDisposable) {
+                    monacoSelectionDisposable.dispose();
+                    monacoSelectionDisposable = null;
+                }
+                elements.refineFeedbackPopup.classList.add('hidden');
+                currentRefinementSelection = null;
+                elements.refineFeedbackInput.value = '';
+                showMessage("Chế độ tinh chỉnh đã được tắt.", 3000);
+            }
+        };
+
+        // NEW: Send Refine Feedback
+        const sendRefineFeedback = async () => {
+            if (!aiModel || !monacoEditor || !currentRefinementSelection || !currentAppId) {
+                return showMessage("Không có mã được chọn hoặc AI/trình soạn thảo chưa sẵn sàng.", 3000);
+            }
+            const userFeedbackText = elements.refineFeedbackInput.value.trim();
+            if (!userFeedbackText) {
+                return showMessage("Vui lòng nhập phản hồi của bạn.", 3000);
+            }
+
+            elements.sendRefineFeedbackBtn.disabled = true;
+            elements.cancelRefineFeedbackBtn.disabled = true;
+            elements.refineFeedbackSpinner.classList.remove('hidden');
+
+            try {
+                const fullCurrentCode = monacoEditor.getValue();
+                const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
+                const selectedCode = monacoEditor.getModel().getValueInRange(currentRefinementSelection);
+
+                // Get context (e.g., 5 lines before and after)
+                const model = monacoEditor.getModel();
+                const startLine = Math.max(1, currentRefinementSelection.startLineNumber - 5);
+                const endLine = Math.min(model.getLineCount(), currentRefinementSelection.endLineNumber + 5);
+                const contextRange = new monaco.Range(startLine, 1, endLine, model.getLineMaxColumn(endLine));
+                const contextCode = model.getValueInRange(contextRange);
+
+                let codeGenPrompt = `Dựa trên mã nguồn tệp hiện tại "${currentFileName}", tôi muốn bạn tinh chỉnh một đoạn mã cụ thể.
+
+Mã nguồn đầy đủ của tệp hiện tại:
+\`\`\`${getLanguageFromFilename(currentFileName)}
+${fullCurrentCode}
+\`\`\`
+
+Đây là đoạn mã mà tôi đã chọn để tinh chỉnh:
+\`\`\`${getLanguageFromFilename(currentFileName)}
+${selectedCode}
+\`\`\`
+
+Đây là ngữ cảnh xung quanh đoạn mã được chọn (một vài dòng trước và sau nó):
+\`\`\`${getLanguageFromFilename(currentFileName)}
+${contextCode}
+\`\`\`
+
+Yêu cầu của tôi đối với đoạn mã ĐÃ CHỌN này là: "${userFeedbackText}"
+
+Hãy thực hiện thay đổi và trả về TOÀN BỘ TỆP ĐÃ ĐƯỢC CẬP NHẬT. Đảm bảo mã hoàn chỉnh, sạch sẽ và chỉ thay đổi những gì được yêu cầu trong đoạn mã được chọn hoặc ngữ cảnh trực tiếp của nó nếu cần.
+
+Hãy tuân thủ định dạng sau:
+Đầu tiên, giải thích chi tiết và kỹ lưỡng những thay đổi bạn đã thực hiện, sử dụng định dạng Markdown (tiêu đề, danh sách, đoạn mã) để trình bày rõ ràng.
+Sau đó, thêm dòng phân cách '---CODE---'.
+Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).`;
+                
+                addMessageToChatHistory('user', `Yêu cầu tinh chỉnh mã: "${userFeedbackText}" (đoạn mã: ${selectedCode.substring(0, 50)}...)`);
+
+                const result = await chat.sendMessage(codeGenPrompt);
+                const fullResponseText = result.response.text();
+                
+                const separator = '---CODE---';
+                let explanation = "AI không cung cấp giải thích.";
+                let newCode = fullResponseText;
+
+                if (fullResponseText.includes(separator)) {
+                    const parts = fullResponseText.split(separator);
+                    explanation = parts[0].trim();
+                    newCode = parts.slice(1).join(separator).trim();
+                } else {
+                    if ((fullResponseText.includes('<html') || fullResponseText.includes('{') || fullResponseText.includes('function') || fullResponseText.includes('body {')) && fullResponseText.length > 100) {
+                        newCode = fullResponseText;
+                        explanation = "AI đã tạo mã nhưng không cung cấp giải thích riêng biệt. Vui lòng xem mã.";
+                    } else {
+                        explanation = fullResponseText;
+                        newCode = "// AI không tạo mã. Đây là phản hồi dạng văn bản.";
+                    }
+                }
+                
+                elements.aiExplanationBox.innerHTML = marked.parse(explanation); 
+                lastAiExplanationMarkdown = explanation;
+                
+                monacoEditor.setValue(newCode); // Update the entire editor content
+
+                showMessage("AI đã tinh chỉnh mã và cung cấp giải thích.");
+                addMessageToChatHistory('ai', "Đã tinh chỉnh mã và cập nhật trình soạn thảo. Xem phần 'Giải thích từ AI' và Trình soạn thảo.");
+
+            } catch (error) {
+                console.error("Error sending refine feedback:", error);
+                showMessage(`Lỗi khi tinh chỉnh mã: ${error.message}`, 5000);
+            } finally {
+                elements.sendRefineFeedbackBtn.disabled = false;
+                elements.cancelRefineFeedbackBtn.disabled = false;
+                elements.refineFeedbackSpinner.classList.add('hidden');
+                elements.refineFeedbackInput.value = '';
+                toggleRefineMode(); // Turn off refine mode after sending feedback
+            }
+        };
+
+        const cancelRefineFeedback = () => {
+            elements.refineFeedbackInput.value = '';
+            toggleRefineMode(); // Turn off refine mode and hide popup
+        };
+
         // --- AI Logic ---
         const initialSystemPrompt = `Bạn là một trợ lý lập trình chuyên sâu về HTML, CSS, và JavaScript.
 **Mục tiêu của bạn:**
@@ -1038,11 +1286,13 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
 
         const sendChatMessage = async () => {
             if (!aiModel) return showMessage("Mô hình AI chưa sẵn sàng.");
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi gửi tin nhắn.", 5000);
+            }
             const userMessage = elements.aiChatInput.value.trim();
             if (!userMessage) return showMessage("Vui lòng nhập tin nhắn.");
 
             // Get current editor content and file name for context
-            // Ensure we get value from the active editor (monacoEditor is only active in 'single' mode)
             const currentCode = monacoEditor ? monacoEditor.getValue() : "// Trình soạn thảo hiện đang trống hoặc không sẵn sàng.";
             const currentFileName = elements.fileNameInput.value.trim() || "chưa chọn tệp";
 
@@ -1086,8 +1336,8 @@ Mọi cuộc trò chuyện của chúng ta sẽ xoay quanh mã nguồn hiện t�
         const generateCodeFromAI = async () => {
             if (!aiModel || !monacoEditor) return showMessage("Mô hình AI hoặc trình soạn thảo chưa sẵn sàng.");
             
-            if (currentEditorType === 'diff') {
-                return showMessage("Vui lòng đóng chế độ xem diff trước khi tạo mã mới.", 5000);
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi tạo mã mới.", 5000);
             }
 
             if (!chat) {
@@ -1187,9 +1437,9 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
 
         // --- Action Functions ---
         const saveVersion = async () => {
-            // Prevent saving if in diff mode
-            if (currentEditorType === 'diff') {
-                return showMessage("Vui lòng đóng chế độ xem diff trước khi lưu phiên bản mới.", 5000);
+            // Prevent saving if in diff mode or refine mode
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi lưu phiên bản mới.", 5000);
             }
 
             if (!userId || !currentAppId || !monacoEditor) return showMessage('Vui lòng chọn ứng dụng và đảm bảo trình soạn thảo sẵn sàng.');
@@ -1259,8 +1509,8 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         };
 
         const showPreview = () => {
-            if (currentEditorType === 'diff') {
-                 return showMessage("Vui lòng đóng chế độ xem diff trước khi xem trước mã.", 5000);
+            if (currentEditorType === 'diff' || isRefineModeActive) {
+                 return showMessage("Vui lòng đóng chế độ xem diff hoặc tắt chế độ tinh chỉnh trước khi xem trước mã.", 5000);
             }
             if (!monacoEditor) return;
             const codeToPreview = monacoEditor.getValue();
@@ -1358,6 +1608,11 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 elements.aiExplanationBox.innerHTML = '<p class="text-gray-500">Phần giải thích của AI sẽ xuất hiện ở đây sau khi tạo mã...</p>'; // Reset explanation when current version is soft-deleted
                 clearChatHistory(); // Clear chat when current version is soft-deleted
                 elements.viewDiffBtn.classList.add('hidden'); // Hide diff button
+                // NEW: Ensure refine mode is turned off
+                if (isRefineModeActive) {
+                    toggleRefineMode();
+                }
+                elements.refineFeedbackPopup.classList.add('hidden');
             } catch (error) { console.error("Error soft deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
         };
         const showDeletedVersionsModal = () => {
@@ -1433,17 +1688,19 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         elements.confirmEditAppBtn.addEventListener('click', saveEditedApplicationName);
         elements.cancelEditAppBtn.addEventListener('click', hideEditAppModal);
         elements.toggleAiSuggestionsBtn.addEventListener('click', toggleAiSuggestions);
-        elements.viewDiffBtn.addEventListener('click', viewDiffWithParent); // New Diff Button Listener
-        elements.closeDiffModalBtn.addEventListener('click', () => { // New Diff Modal Close Listener
+        elements.viewDiffBtn.addEventListener('click', viewDiffWithParent);
+        elements.closeDiffModalBtn.addEventListener('click', () => {
             elements.diffModal.classList.add('hidden');
-            // After closing diff, return to single editor mode with the current file
             const currentFileName = elements.fileNameInput.value;
-            const currentFileContent = monacoEditor ? monacoEditor.getValue() : ''; // Get current content before disposing
+            const currentFileContent = monacoEditor ? monacoEditor.getValue() : '';
             createSingleEditor(currentFileContent, currentFileName);
-            // Ensure layout is updated if editor was in hidden modal
             if (monacoEditor) monacoEditor.layout(); 
         });
 
+        // NEW Refine mode listeners
+        elements.toggleRefineModeBtn.addEventListener('click', toggleRefineMode);
+        elements.sendRefineFeedbackBtn.addEventListener('click', sendRefineFeedback);
+        elements.cancelRefineFeedbackBtn.addEventListener('click', cancelRefineFeedback);
 
         elements.searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
