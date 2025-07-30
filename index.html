@@ -355,6 +355,17 @@
                     <p class="text-gray-500 text-center">Bắt đầu trò chuyện để trao đổi về mã của bạn.</p>
                 </div>
 
+                <!-- NEW: AI Interaction Instructions -->
+                <div class="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-lg mb-4 text-sm shadow-sm">
+                    <p class="font-semibold mb-1">Hướng dẫn tương tác với AI:</p>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        <li>Khi nhấn <strong class="font-bold">'Thảo luận' (Send Message)</strong>: AI sẽ tham gia thảo luận, phân tích, giải thích hoặc gợi ý về mã. <u class="font-bold text-red-600">AI SẼ KHÔNG TẠO MÃ HOẶC SỬ DỤNG '---CODE---' TRONG CHẾ ĐỘ NÀY.</u></li>
+                        <li>Khi nhấn <strong class="font-bold">'Tạo mã từ cuộc trò chuyện' (Generate Code from Chat)</strong>: AI sẽ tạo mã nguồn mới/cập nhật và giải thích theo định dạng đã định.</li>
+                        <li>Mọi cuộc trò chuyện đều dựa trên mã nguồn **HIỆN TẠI** trong trình soạn thảo.</li>
+                    </ul>
+                </div>
+                <!-- END NEW: AI Interaction Instructions -->
+
                 <!-- NEW: Expand Chat Button -->
                 <button id="expandChatBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-md mb-4 w-full text-sm">
                     Mở rộng trò chuyện
@@ -681,7 +692,6 @@
 
         const aiPromptSuggestions = [
             "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:",
-            "Thảo luận:",
             "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn."
         ];
 
