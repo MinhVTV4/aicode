@@ -204,8 +204,13 @@
 </head>
 <body class="min-h-screen flex flex-col">
     <!-- Header -->
-    <header class="bg-indigo-700 text-white p-4 shadow-md flex justify-between items-center z-40">
-        <h1 class="text-3xl font-bold">Version Control AI Canvas</h1>
+    <header class="bg-indigo-700 text-white p-4 shadow-md flex justify-between items-center z-30 sticky top-0">
+        <div class="flex items-center gap-4">
+            <button id="sidebarToggleBtn" class="p-2 rounded-md hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <h1 class="text-2xl lg:text-3xl font-bold">Version Control AI Canvas</h1>
+        </div>
         <div id="authStatus" class="flex items-center space-x-4">
             <span id="userEmailDisplay" class="text-lg font-medium hidden"></span>
             <button id="logoutBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 hidden">
@@ -238,14 +243,15 @@
         </div>
     </div>
 
-    <!-- Main App Content -->
-    <!-- Cải thiện bố cục đáp ứng: Thêm md:grid-cols-2 và điều chỉnh gap -->
-    <main id="mainAppContent" class="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 lg:gap-8 hidden px-4 py-4">
-        
-        <!-- Left Column: Applications List -->
-        <!-- Điều chỉnh col-span cho màn hình trung bình -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 md:col-span-1 lg:col-span-2 flex flex-col border border-gray-200">
-            <h2 class="text-2xl font-semibold mb-4 text-gray-800">Applications</h2>
+    <!-- Sidebar for Applications -->
+    <div id="sidebarContainer" class="fixed top-0 left-0 h-full bg-white shadow-xl z-50 transform -translate-x-full transition-transform duration-300 ease-in-out w-80">
+        <section class="p-6 h-full flex flex-col border-r border-gray-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold text-gray-800">Applications</h2>
+                <button id="sidebarCloseBtn" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100">
+                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
             <button id="addNewAppBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
                 Add New Application
             </button>
@@ -256,10 +262,15 @@
                 <div class="text-gray-500 text-center py-4">Loading applications...</div>
             </div>
         </section>
+    </div>
+    <!-- Sidebar Overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
 
+    <!-- Main App Content -->
+    <main id="mainAppContent" class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 lg:gap-8 hidden px-4 py-4">
+        
         <!-- Middle Column: Versions List -->
-        <!-- Điều chỉnh col-span cho màn hình trung bình -->
-        <section class="bg-white p-6 rounded-lg shadow-md col-span-1 md:col-span-1 lg:col-span-2 flex flex-col border border-gray-200">
+        <section class="bg-white p-6 rounded-lg shadow-md lg:col-span-3 xl:col-span-2 flex flex-col border border-gray-200">
             <h2 class="text-2xl font-semibold mb-4 text-gray-800">Versions for <span id="currentAppName" class="font-bold text-blue-600">No App Selected</span></h2>
             <button id="showDeletedVersionsBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-5 rounded-lg shadow-md mb-4 w-full">
                 Xem phiên bản đã xóa
@@ -270,8 +281,7 @@
         </section>
 
         <!-- Right Column: AI Canvas -->
-        <!-- Điều chỉnh col-span cho màn hình trung bình -->
-        <section class="bg-white p-8 rounded-xl shadow-xl col-span-1 md:col-span-2 lg:col-span-8 flex flex-col border border-gray-200">
+        <section class="bg-white p-8 rounded-xl shadow-xl lg:col-span-9 xl:col-span-10 flex flex-col border border-gray-200">
             <h2 class="text-3xl font-bold mb-6 text-gray-800">AI Canvas</h2>
             
             <!-- Block 1: Files and Version Info -->
@@ -688,12 +698,31 @@
             attachedFileInfo: document.getElementById('attachedFileInfo'),
             attachedFileNameDisplay: document.getElementById('attachedFileNameDisplay'),
             removeAttachedFileBtn: document.getElementById('removeAttachedFileBtn'),
+
+            // NEW: Sidebar elements
+            sidebarToggleBtn: document.getElementById('sidebarToggleBtn'),
+            sidebarContainer: document.getElementById('sidebarContainer'),
+            sidebarOverlay: document.getElementById('sidebarOverlay'),
+            sidebarCloseBtn: document.getElementById('sidebarCloseBtn'),
         };
 
         const aiPromptSuggestions = [
             "Tạo cho tôi một ứng dụng web viết bằng html tích hợp js và css. Giao diện TailwindCss hiện đại. Nội dung của nó là:",
             "Tối ưu hóa mã nguồn này để nó chạy nhanh hơn và dễ đọc hơn."
         ];
+
+        // --- Sidebar Management ---
+        const openSidebar = () => {
+            elements.sidebarContainer.classList.remove('-translate-x-full');
+            elements.sidebarContainer.classList.add('translate-x-0');
+            elements.sidebarOverlay.classList.remove('hidden');
+        };
+
+        const closeSidebar = () => {
+            elements.sidebarContainer.classList.add('-translate-x-full');
+            elements.sidebarContainer.classList.remove('translate-x-0');
+            elements.sidebarOverlay.classList.add('hidden');
+        };
 
         // --- Monaco Editor Management Functions ---
 
@@ -1429,8 +1458,8 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         // --- AI Logic ---
         const initialSystemPrompt = `Bạn là một trợ lý lập trình chuyên sâu về HTML, CSS, và JavaScript.
 **Mục tiêu của bạn:**
-*   **Khi tôi nhấn 'Gửi tin nhắn' (Send Message)**: Bạn sẽ tham gia vào cuộc trò chuyện, thảo luận, phân tích, giải thích, đưa ra lời khuyên hoặc gợi ý về mã nguồn hiện tại trong trình soạn thảo. **Bạn KHÔNG được tạo ra mã nguồn hoặc sử dụng định dạng '---CODE---' trong các phản hồi này.**
-*   **Khi tôi nhấn 'Tạo mã từ cuộc trò chuyện' (Generate Code from Chat)**: Đây là yêu cầu của tôi để bạn tạo ra mã nguồn. Bạn PHẢI trả lời theo định dạng:
+* **Khi tôi nhấn 'Gửi tin nhắn' (Send Message)**: Bạn sẽ tham gia vào cuộc trò chuyện, thảo luận, phân tích, giải thích, đưa ra lời khuyên hoặc gợi ý về mã nguồn hiện tại trong trình soạn thảo. **Bạn KHÔNG được tạo ra mã nguồn hoặc sử dụng định dạng '---CODE---' trong các phản hồi này.**
+* **Khi tôi nhấn 'Tạo mã từ cuộc trò chuyện' (Generate Code from Chat)**: Đây là yêu cầu của tôi để bạn tạo ra mã nguồn. Bạn PHẢI trả lời theo định dạng:
     1.  Giải thích ngắn gọn các thay đổi bạn đã thực hiện.
     2.  Thêm dòng phân cách '---CODE---'.
     3.  Chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: một file HTML, CSS hoặc JS đầy đủ).
@@ -1952,7 +1981,11 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
             const appName = appItem.dataset.appName;
             if (e.target.classList.contains('edit-app-btn')) { showEditAppModal(appId, appName); } 
             else if (e.target.classList.contains('delete-app-btn')) { deleteApplicationCascade(appId); } 
-            else { selectApplication(appId, appName); }
+            else { 
+                selectApplication(appId, appName);
+                // Close sidebar on any screen size after selection for better UX
+                closeSidebar();
+            }
         });
         elements.versionsList.addEventListener('click', (e) => {
             const versionItem = e.target.closest('.list-item');
@@ -1973,6 +2006,11 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
             const button = e.target.closest('button');
             if (button) elements.aiChatInput.value = button.dataset.prompt; 
         });
+
+        // Sidebar Event Listeners
+        elements.sidebarToggleBtn.addEventListener('click', openSidebar);
+        elements.sidebarOverlay.addEventListener('click', closeSidebar);
+        elements.sidebarCloseBtn.addEventListener('click', closeSidebar);
 
     </script>
 </body>
