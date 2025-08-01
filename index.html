@@ -15,6 +15,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
 
     <style>
+        html {
+            scroll-behavior: smooth;
+        }
         /* CSS tùy chỉnh để giao diện đẹp hơn và theo Material Design */
         body {
             font-family: 'Inter', sans-serif;
@@ -444,6 +447,11 @@
         </section>
     </main>
 
+    <!-- Back to Top Button -->
+    <button id="backToTopBtn" class="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold w-12 h-12 rounded-full shadow-lg hidden flex justify-center items-center transition-opacity duration-300 z-50">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+    </button>
+
     <!-- MessageBox -->
     <div id="messageBox" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl hidden z-50 transition-opacity duration-300 opacity-0">
         <span id="messageContent"></span>
@@ -704,6 +712,8 @@
             sidebarContainer: document.getElementById('sidebarContainer'),
             sidebarOverlay: document.getElementById('sidebarOverlay'),
             sidebarCloseBtn: document.getElementById('sidebarCloseBtn'),
+            // NEW: Back to Top Button
+            backToTopBtn: document.getElementById('backToTopBtn'),
         };
 
         const aiPromptSuggestions = [
@@ -1875,6 +1885,21 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
                 showMessage('Đã xóa vĩnh viễn!');
             } catch (error) { console.error("Error permanently deleting:", error); showMessage(`Lỗi: ${error.message}`, 5000); }
         };
+
+        // --- Back to Top Logic ---
+        const handleScroll = () => {
+            if (window.scrollY > 300) {
+                elements.backToTopBtn.classList.remove('hidden');
+                elements.backToTopBtn.classList.add('flex');
+            } else {
+                elements.backToTopBtn.classList.add('hidden');
+                elements.backToTopBtn.classList.remove('flex');
+            }
+        };
+
+        const scrollToTop = () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
         
         // --- Event Listeners ---
         elements.loginBtn.addEventListener('click', () => handleAuth(false));
@@ -2011,6 +2036,10 @@ Cuối cùng, chỉ cung cấp khối mã hoàn chỉnh, sạch sẽ (ví dụ: 
         elements.sidebarToggleBtn.addEventListener('click', openSidebar);
         elements.sidebarOverlay.addEventListener('click', closeSidebar);
         elements.sidebarCloseBtn.addEventListener('click', closeSidebar);
+
+        // Back to Top Listeners
+        window.addEventListener('scroll', handleScroll);
+        elements.backToTopBtn.addEventListener('click', scrollToTop);
 
     </script>
 </body>
